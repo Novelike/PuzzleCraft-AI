@@ -187,7 +187,7 @@ class AIServiceClient {
     const formData = new FormData()
     formData.append('file', file)
 
-    return this.makeFormRequest('/api/v1/analyze/complexity', formData)
+    return this.makeFormRequest('/analyze/complexity', formData)
   }
 
   /**
@@ -198,7 +198,7 @@ class AIServiceClient {
     targetAudience: string = 'general',
     accessibilityRequirements: string[] = []
   ): Promise<APIResponse<DifficultyProfile>> {
-    return this.makeRequest('/api/v1/analyze/difficulty-profile', {
+    return this.makeRequest('/analyze/difficulty-profile', {
       method: 'POST',
       body: JSON.stringify({
         complexity_analysis: complexityAnalysis,
@@ -222,21 +222,21 @@ class AIServiceClient {
       formData.append('request', JSON.stringify(request))
     }
 
-    return this.makeFormRequest('/api/v1/puzzles/generate-intelligent', formData)
+    return this.makeFormRequest('/generate-intelligent', formData)
   }
 
   /**
    * 퍼즐 생성 상태 확인
    */
   async getPuzzleStatus(taskId: string): Promise<APIResponse<PuzzleTaskStatus>> {
-    return this.makeRequest(`/api/v1/puzzles/status/${taskId}`)
+    return this.makeRequest(`/status/${taskId}`)
   }
 
   /**
    * 퍼즐 생성 결과 조회
    */
   async getPuzzleResult(taskId: string): Promise<APIResponse<PuzzleGenerationResult>> {
-    return this.makeRequest(`/api/v1/puzzles/result/${taskId}`)
+    return this.makeRequest(`/result/${taskId}`)
   }
 
   /**
