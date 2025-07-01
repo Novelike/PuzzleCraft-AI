@@ -119,7 +119,7 @@ setup_environment() {
     # Node.js 버전 확인
     local node_version=$(node --version 2>/dev/null || echo "없음")
     log "INFO" "Node.js 버전: $node_version"
-    
+
     # PostgreSQL 클라이언트 버전 확인
     local psql_version=$(psql --version 2>/dev/null || echo "없음")
     log "INFO" "PostgreSQL 클라이언트 버전: $psql_version"
@@ -141,12 +141,12 @@ test_postgres_connection() {
         log "INFO" "  포트: $POSTGRES_PORT"
         log "INFO" "  사용자: $POSTGRES_USER"
         log "INFO" "  데이터베이스: $POSTGRES_DB"
-        
+
         # 직접 연결 시도해서 오류 메시지 캡처
         PGPASSWORD="$POSTGRES_PASSWORD" psql -h "$POSTGRES_HOST" -p "$POSTGRES_PORT" -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "SELECT 1;" 2>&1 | head -5 | while read line; do
             log "INFO" "  오류 상세: $line"
         done
-        
+
         return 1
     fi
 }
@@ -201,7 +201,13 @@ EOF
 
 # 백엔드 서비스 배포
 deploy_backend_services() {
-    log "INFO" "백엔드 서비스들을 배포합니다..."
+    log "INFO" "통합 가상환경을 사용하여 백엔드 서비스들을 배포합니다..."
+
+    # 통합 가상환경 확인
+    if [ ! -d "venv" ]; then
+        log "ERROR" "통합 가상환경이 없습니다. 먼저 'python3 -m venv venv && source venv/bin/activate && pip install -r requirements.txt'를 실행하세요."
+        return 1
+    fi
 
     local total=${#BACKEND_SERVICES[@]}
     local current=0
@@ -223,32 +229,8 @@ deploy_backend_services() {
 
         cd "backend/$service"
 
-        # Python 가상환경 생성
-        if [ ! -d "venv" ]; then
-            log "INFO" "$service: Python 가상환경 생성 중..."
-            python3 -m venv venv 2>&1 | tee -a "../../$DEPLOY_LOG"
-        fi
-
-        # 가상환경 활성화 및 의존성 설치
-        log "INFO" "$service: 의존성 설치 중..."
-        source venv/bin/activate
-
-        if [ -f "requirements.txt" ]; then
-            # pip 업그레이드
-            pip install --upgrade pip 2>&1 | tee -a "../../$DEPLOY_LOG"
-
-            # 호환성 문제가 있는 패키지들을 수정하여 설치
-            # cryptography 버전 문제 해결
-            sed -i 's/cryptography==41.0.8/cryptography>=41.0.0,<46.0.0/' requirements.txt 2>/dev/null || true
-
-            # strawberry-graphql 버전 문제 해결
-            sed -i 's/strawberry-graphql==0.214.1/strawberry-graphql>=0.200.0,<0.280.0/' requirements.txt 2>/dev/null || true
-
-            # 의존성 설치 (오류 무시하고 계속 진행)
-            pip install -r requirements.txt 2>&1 | tee -a "../../$DEPLOY_LOG" || log "WARN" "$service: 일부 의존성 설치 실패, 계속 진행합니다."
-        else
-            log "WARN" "$service: requirements.txt 파일이 없습니다."
-        fi
+        # 통합 가상환경 사용 (개별 가상환경 생성하지 않음)
+        log "INFO" "$service: 통합 가상환경 사용"
 
         # 서비스별 환경 변수 파일 생성
         cat > .env << EOL
@@ -260,7 +242,7 @@ SERVICE_NAME=$service
 LOG_LEVEL=INFO
 EOL
 
-        # systemd 서비스 파일 생성
+        # systemd 서비스 파일 생성 (통합 가상환경 사용)
         sudo tee /etc/systemd/system/puzzlecraft-$service.service > /dev/null << EOL
 [Unit]
 Description=PuzzleCraft $service
@@ -270,9 +252,9 @@ After=network.target
 Type=simple
 User=$USER
 WorkingDirectory=$(pwd)
-Environment=PATH=$(pwd)/venv/bin
+Environment=PATH=/opt/PuzzleCraft-AI/venv/bin
 EnvironmentFile=$(pwd)/.env
-ExecStart=$(pwd)/venv/bin/python main.py
+ExecStart=/opt/PuzzleCraft-AI/venv/bin/python main.py
 Restart=always
 RestartSec=10
 StandardOutput=append:/var/log/puzzlecraft-$service.log
@@ -301,7 +283,6 @@ EOL
             sudo systemctl status puzzlecraft-$service 2>&1 | tee -a "../../$ERROR_LOG"
         fi
 
-        deactivate
         cd "../.."
     done
 
