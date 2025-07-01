@@ -95,7 +95,8 @@ export const PuzzlePreview: React.FC<PuzzlePreviewProps> = ({
     // 이미지 로드 및 그리기
     const img = new Image()
     img.onload = () => {
-      const { gridInfo, pieces } = previewData
+      const gridInfo = previewData.gridInfo || { rows: 0, cols: 0 }
+      const pieces = previewData.pieces || []
 
       switch (viewMode) {
         case 'assembled':
@@ -129,12 +130,12 @@ export const PuzzlePreview: React.FC<PuzzlePreviewProps> = ({
       ctx.shadowColor = 'rgba(0, 0, 0, 0.3)'
       ctx.shadowBlur = 2
 
-      const { gridInfo } = previewData
-      const pieceWidth = scaledWidth / gridInfo.cols
-      const pieceHeight = scaledHeight / gridInfo.rows
+      const gridInfo = previewData.gridInfo || { rows: 0, cols: 0 }
+      const pieceWidth = scaledWidth / (gridInfo.cols || 1)
+      const pieceHeight = scaledHeight / (gridInfo.rows || 1)
 
       // 세로선
-      for (let i = 1; i < gridInfo.cols; i++) {
+      for (let i = 1; i < (gridInfo.cols || 0); i++) {
         ctx.beginPath()
         ctx.moveTo(x + i * pieceWidth, y)
         ctx.lineTo(x + i * pieceWidth, y + scaledHeight)
@@ -142,7 +143,7 @@ export const PuzzlePreview: React.FC<PuzzlePreviewProps> = ({
       }
 
       // 가로선
-      for (let i = 1; i < gridInfo.rows; i++) {
+      for (let i = 1; i < (gridInfo.rows || 0); i++) {
         ctx.beginPath()
         ctx.moveTo(x, y + i * pieceHeight)
         ctx.lineTo(x + scaledWidth, y + i * pieceHeight)
@@ -183,7 +184,7 @@ export const PuzzlePreview: React.FC<PuzzlePreviewProps> = ({
 
   const drawGridView = (ctx: CanvasRenderingContext2D, pieces: PuzzlePiece[], gridInfo: any, width: number, height: number) => {
     // 격자 형태로 조각 배치
-    const cols = Math.min(gridInfo.cols, 8) // 최대 8열
+    const cols = Math.min(gridInfo?.cols || 8, 8) // 최대 8열
     const rows = Math.ceil(pieces.length / cols)
     const cellWidth = width / cols
     const cellHeight = height / rows
@@ -225,9 +226,11 @@ export const PuzzlePreview: React.FC<PuzzlePreviewProps> = ({
     const y = event.clientY - rect.top
 
     // 클릭된 조각 찾기 (간단한 구현)
-    const pieceIndex = Math.floor(x / (canvas.width / Math.min(previewData.gridInfo.cols, 8)))
-    if (pieceIndex < previewData.pieces.length) {
-      setSelectedPiece(previewData.pieces[pieceIndex].id)
+    const cols = previewData.gridInfo?.cols || 8
+    const pieces = previewData.pieces || []
+    const pieceIndex = Math.floor(x / (canvas.width / Math.min(cols, 8)))
+    if (pieceIndex < pieces.length) {
+      setSelectedPiece(pieces[pieceIndex].id)
     }
   }
 
@@ -373,7 +376,7 @@ export const PuzzlePreview: React.FC<PuzzlePreviewProps> = ({
                 onClick={handleCanvasClick}
                 className="w-full h-full cursor-pointer"
               />
-              
+
               {selectedPiece && (
                 <div className="absolute top-4 left-4 bg-white border border-gray-200 rounded-lg p-3 shadow-lg">
                   <div className="flex items-center space-x-2">
@@ -426,12 +429,12 @@ export const PuzzlePreview: React.FC<PuzzlePreviewProps> = ({
             <div className="space-y-2 text-sm">
               <div className="flex justify-between">
                 <span className="text-blue-700">조각 수:</span>
-                <span className="font-medium">{previewData.pieces.length}개</span>
+                <span className="font-medium">{previewData.pieces?.length || 0}개</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-blue-700">격자 크기:</span>
                 <span className="font-medium">
-                  {previewData.gridInfo.rows} × {previewData.gridInfo.cols}
+                  {previewData.gridInfo?.rows || 0} × {previewData.gridInfo?.cols || 0}
                 </span>
               </div>
               <div className="flex justify-between">
@@ -441,7 +444,7 @@ export const PuzzlePreview: React.FC<PuzzlePreviewProps> = ({
               <div className="flex justify-between">
                 <span className="text-blue-700">예상 소요 시간:</span>
                 <span className="font-medium">
-                  {formatTime(previewData.metadata.estimatedSolveTime)}
+                  {formatTime(previewData.metadata?.estimatedSolveTime || 0)}
                 </span>
               </div>
             </div>
@@ -456,16 +459,16 @@ export const PuzzlePreview: React.FC<PuzzlePreviewProps> = ({
             <div className="space-y-3">
               <div className="flex items-center justify-between">
                 <span className="text-orange-700 text-sm">난이도 점수:</span>
-                <span className={`px-2 py-1 rounded-full text-xs font-medium ${getDifficultyColor(previewData.metadata.difficultyScore)}`}>
-                  {getDifficultyText(previewData.metadata.difficultyScore)}
+                <span className={`px-2 py-1 rounded-full text-xs font-medium ${getDifficultyColor(previewData.metadata?.difficultyScore || 0)}`}>
+                  {getDifficultyText(previewData.metadata?.difficultyScore || 0)}
                 </span>
               </div>
-              
-              {previewData.metadata.challengeFactors.length > 0 && (
+
+              {(previewData.metadata?.challengeFactors?.length || 0) > 0 && (
                 <div>
                   <p className="text-orange-700 text-sm mb-2">도전 요소:</p>
                   <div className="flex flex-wrap gap-1">
-                    {previewData.metadata.challengeFactors.map((factor, index) => (
+                    {(previewData.metadata?.challengeFactors || []).map((factor, index) => (
                       <span
                         key={index}
                         className="px-2 py-1 bg-orange-100 text-orange-700 text-xs rounded"
@@ -491,7 +494,7 @@ export const PuzzlePreview: React.FC<PuzzlePreviewProps> = ({
             <RefreshCw className="h-4 w-4" />
             <span>다시 생성</span>
           </button>
-          
+
           <button
             onClick={onStartPuzzle}
             className="btn-primary flex items-center space-x-2"

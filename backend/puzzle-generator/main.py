@@ -469,6 +469,7 @@ async def generate_puzzle_preview(
             "piece_count": piece_count,
             "piece_shape": piece_shape,
             "preview_data": {
+                "pieces": preview_result.get("pieces", []),
                 "piece_count": len(preview_result.get("pieces", [])),
                 "grid_info": preview_result.get("grid_info", {}),
                 "metadata": preview_result.get("metadata", {})
