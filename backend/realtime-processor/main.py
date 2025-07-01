@@ -19,7 +19,7 @@ from pydantic import BaseModel, Field
 
 # 로컬 모듈 임포트
 from websocket_manager import WebSocketManager
-from ai_task_queue import AITaskQueue, TaskPriority, TaskType
+from ai_task_queue import AITaskQueue, TaskPriority, AIServiceType
 from progress_tracker import ProgressTracker
 from notification_service import (
     NotificationService, 
@@ -111,19 +111,19 @@ class ProgressResponse(BaseModel):
 async def initialize_services():
     """모든 서비스 초기화"""
     global websocket_manager, ai_task_queue, progress_tracker, notification_service
-    
+
     try:
         # Redis URL 설정
         redis_url = os.getenv("REDIS_URL", "redis://localhost:6379")
-        
+
         # WebSocket 관리자 초기화
         websocket_manager = WebSocketManager()
         await websocket_manager.initialize()
-        
+
         # 진행률 추적기 초기화
         progress_tracker = ProgressTracker(redis_url=redis_url)
         await progress_tracker.initialize()
-        
+
         # 알림 서비스 초기화
         email_config = None
         if all(os.getenv(key) for key in ["SMTP_SERVER", "SMTP_PORT", "SMTP_USERNAME", "SMTP_PASSWORD"]):
@@ -133,13 +133,13 @@ async def initialize_services():
                 "username": os.getenv("SMTP_USERNAME"),
                 "password": os.getenv("SMTP_PASSWORD")
             }
-        
+
         push_config = None
         if os.getenv("FCM_SERVER_KEY"):
             push_config = {
                 "fcm_server_key": os.getenv("FCM_SERVER_KEY")
             }
-        
+
         notification_service = NotificationService(
             redis_url=redis_url,
             websocket_manager=websocket_manager,
@@ -147,7 +147,7 @@ async def initialize_services():
             push_config=push_config
         )
         await notification_service.initialize()
-        
+
         # AI 작업 큐 초기화
         ai_task_queue = AITaskQueue(
             redis_url=redis_url,
@@ -155,14 +155,14 @@ async def initialize_services():
             notification_service=notification_service
         )
         await ai_task_queue.initialize()
-        
+
         # 진행률 추적기에 알림 콜백 등록
         callbacks = await create_progress_callbacks(notification_service)
         for event, callback in callbacks.items():
             progress_tracker.register_callback(event, callback)
-        
+
         logger.info("모든 서비스 초기화 완료")
-        
+
     except Exception as e:
         logger.error(f"서비스 초기화 실패: {str(e)}")
         raise
@@ -172,7 +172,7 @@ async def initialize_services():
 async def shutdown_services():
     """모든 서비스 종료"""
     global websocket_manager, ai_task_queue, progress_tracker, notification_service
-    
+
     try:
         if ai_task_queue:
             await ai_task_queue.shutdown()
@@ -182,9 +182,9 @@ async def shutdown_services():
             await notification_service.shutdown()
         if websocket_manager:
             await websocket_manager.shutdown()
-        
+
         logger.info("모든 서비스 종료 완료")
-        
+
     except Exception as e:
         logger.error(f"서비스 종료 중 오류: {str(e)}")
 
@@ -240,11 +240,11 @@ async def websocket_endpoint(
 ):
     """WebSocket 연결 엔드포인트"""
     connection_id = str(uuid.uuid4())
-    
+
     try:
         await ws_manager.connect(websocket, connection_id, user_id)
         logger.info(f"WebSocket 연결 성공: {user_id} ({connection_id})")
-        
+
         # 연결 확인 메시지 전송
         await ws_manager.send_to_connection(connection_id, {
             "type": "connection_established",
@@ -252,16 +252,16 @@ async def websocket_endpoint(
             "user_id": user_id,
             "timestamp": datetime.now().isoformat()
         })
-        
+
         # 메시지 수신 루프
         while True:
             try:
                 data = await websocket.receive_text()
                 message = json.loads(data)
-                
+
                 # 메시지 타입에 따른 처리
                 await handle_websocket_message(connection_id, user_id, message)
-                
+
             except WebSocketDisconnect:
                 break
             except json.JSONDecodeError:
@@ -275,7 +275,7 @@ async def websocket_endpoint(
                     "type": "error",
                     "message": f"메시지 처리 중 오류가 발생했습니다: {str(e)}"
                 })
-                
+
     except Exception as e:
         logger.error(f"WebSocket 연결 오류: {str(e)}")
     finally:
@@ -286,14 +286,14 @@ async def websocket_endpoint(
 async def handle_websocket_message(connection_id: str, user_id: str, message: Dict[str, Any]):
     """WebSocket 메시지 처리"""
     message_type = message.get("type")
-    
+
     if message_type == "ping":
         # 핑 응답
         await websocket_manager.send_to_connection(connection_id, {
             "type": "pong",
             "timestamp": datetime.now().isoformat()
         })
-        
+
     elif message_type == "subscribe_task":
         # 작업 구독
         task_id = message.get("task_id")
@@ -303,7 +303,7 @@ async def handle_websocket_message(connection_id: str, user_id: str, message: Di
                 "type": "subscribed",
                 "task_id": task_id
             })
-            
+
     elif message_type == "unsubscribe_task":
         # 작업 구독 해제
         task_id = message.get("task_id")
@@ -313,7 +313,7 @@ async def handle_websocket_message(connection_id: str, user_id: str, message: Di
                 "type": "unsubscribed",
                 "task_id": task_id
             })
-            
+
     elif message_type == "get_task_status":
         # 작업 상태 조회
         task_id = message.get("task_id")
@@ -355,9 +355,9 @@ async def health_check():
             "progress_tracker": progress_tracker is not None,
             "notification_service": notification_service is not None
         }
-        
+
         all_healthy = all(services_status.values())
-        
+
         return {
             "status": "healthy" if all_healthy else "degraded",
             "services": services_status,
@@ -389,12 +389,12 @@ async def register_user(
             "sms": NotificationChannel.SMS,
             "webhook": NotificationChannel.WEBHOOK
         }
-        
+
         preferences = {}
         for channel_str, enabled in user_data.notification_preferences.items():
             if channel_str in channel_mapping:
                 preferences[channel_mapping[channel_str]] = enabled
-        
+
         # 수신자 객체 생성
         recipient = NotificationRecipient(
             user_id=user_data.user_id,
@@ -404,15 +404,15 @@ async def register_user(
             push_token=user_data.push_token,
             preferences=preferences
         )
-        
+
         # 수신자 등록
         await notification_svc.register_recipient(recipient)
-        
+
         return {
             "message": "사용자가 성공적으로 등록되었습니다",
             "user_id": user_data.user_id
         }
-        
+
     except Exception as e:
         logger.error(f"사용자 등록 실패: {str(e)}")
         raise HTTPException(status_code=500, detail=f"사용자 등록 실패: {str(e)}")
@@ -433,19 +433,19 @@ async def submit_task(
             "high": TaskPriority.HIGH,
             "critical": TaskPriority.CRITICAL
         }
-        
+
         priority = priority_mapping.get(task_request.priority.lower(), TaskPriority.NORMAL)
-        
+
         # 작업 타입 매핑
         task_type_mapping = {
-            "puzzle_generation": TaskType.PUZZLE_GENERATION,
-            "image_processing": TaskType.IMAGE_PROCESSING,
-            "ocr_processing": TaskType.OCR_PROCESSING,
-            "ai_analysis": TaskType.AI_ANALYSIS
+            "puzzle_generation": AIServiceType.PUZZLE_GENERATOR,
+            "image_processing": AIServiceType.STYLE_TRANSFER,
+            "ocr_processing": AIServiceType.OCR,
+            "ai_analysis": AIServiceType.SEGMENTATION
         }
-        
-        task_type = task_type_mapping.get(task_request.task_type.lower(), TaskType.PUZZLE_GENERATION)
-        
+
+        task_type = task_type_mapping.get(task_request.task_type.lower(), AIServiceType.PUZZLE_GENERATOR)
+
         # 작업 제출
         task_id = await task_queue.submit_task(
             task_type=task_type,
@@ -454,27 +454,27 @@ async def submit_task(
             priority=priority,
             callback_url=task_request.callback_url
         )
-        
+
         # 예상 완료 시간 계산 (간단한 추정)
         estimated_minutes = 5  # 기본값
-        if task_type == TaskType.PUZZLE_GENERATION:
+        if task_type == AIServiceType.PUZZLE_GENERATOR:
             estimated_minutes = 10
-        elif task_type == TaskType.IMAGE_PROCESSING:
+        elif task_type == AIServiceType.STYLE_TRANSFER:
             estimated_minutes = 3
-        elif task_type == TaskType.OCR_PROCESSING:
+        elif task_type == AIServiceType.OCR:
             estimated_minutes = 2
-        
+
         estimated_completion = datetime.now().replace(
             minute=datetime.now().minute + estimated_minutes
         ).isoformat()
-        
+
         return TaskResponse(
             task_id=task_id,
             status="submitted",
             message="작업이 성공적으로 제출되었습니다",
             estimated_completion=estimated_completion
         )
-        
+
     except Exception as e:
         logger.error(f"작업 제출 실패: {str(e)}")
         raise HTTPException(status_code=500, detail=f"작업 제출 실패: {str(e)}")
@@ -488,10 +488,10 @@ async def get_task_status(
     """작업 상태 조회"""
     try:
         status = await tracker.get_progress_status(task_id)
-        
+
         if not status:
             raise HTTPException(status_code=404, detail="작업을 찾을 수 없습니다")
-        
+
         return ProgressResponse(
             task_id=task_id,
             overall_progress=status.get("overall_progress", 0),
@@ -500,7 +500,7 @@ async def get_task_status(
             estimated_completion=status.get("estimated_completion"),
             performance_metrics=status.get("performance_metrics", {})
         )
-        
+
     except HTTPException:
         raise
     except Exception as e:
@@ -516,12 +516,12 @@ async def cancel_task(
     """작업 취소"""
     try:
         success = await task_queue.cancel_task(task_id)
-        
+
         if not success:
             raise HTTPException(status_code=404, detail="작업을 찾을 수 없거나 취소할 수 없습니다")
-        
+
         return {"message": "작업이 성공적으로 취소되었습니다", "task_id": task_id}
-        
+
     except HTTPException:
         raise
     except Exception as e:
@@ -539,7 +539,7 @@ async def get_task_history(
     try:
         history = await tracker.get_progress_history(task_id, limit)
         return {"task_id": task_id, "history": history}
-        
+
     except Exception as e:
         logger.error(f"작업 히스토리 조회 실패: {str(e)}")
         raise HTTPException(status_code=500, detail=f"작업 히스토리 조회 실패: {str(e)}")
@@ -561,9 +561,9 @@ async def get_statistics(
             "websocket_manager": await ws_manager.get_statistics(),
             "timestamp": datetime.now().isoformat()
         }
-        
+
         return stats
-        
+
     except Exception as e:
         logger.error(f"통계 조회 실패: {str(e)}")
         raise HTTPException(status_code=500, detail=f"통계 조회 실패: {str(e)}")
@@ -591,7 +591,7 @@ async def send_notification(
             "system_alert": NotificationType.SYSTEM_ALERT,
             "user_message": NotificationType.USER_MESSAGE
         }
-        
+
         channel_mapping = {
             "websocket": NotificationChannel.WEBSOCKET,
             "email": NotificationChannel.EMAIL,
@@ -599,21 +599,21 @@ async def send_notification(
             "sms": NotificationChannel.SMS,
             "webhook": NotificationChannel.WEBHOOK
         }
-        
+
         priority_mapping = {
             "low": NotificationPriority.LOW,
             "normal": NotificationPriority.NORMAL,
             "high": NotificationPriority.HIGH,
             "critical": NotificationPriority.CRITICAL
         }
-        
+
         notif_type = type_mapping.get(notification_type.lower(), NotificationType.USER_MESSAGE)
         notif_priority = priority_mapping.get(priority.lower(), NotificationPriority.NORMAL)
-        
+
         notif_channels = None
         if channels:
             notif_channels = [channel_mapping[ch] for ch in channels if ch in channel_mapping]
-        
+
         notification_id = await notification_svc.send_notification(
             notification_type=notif_type,
             recipient_id=recipient_id,
@@ -623,12 +623,12 @@ async def send_notification(
             channels=notif_channels,
             priority=notif_priority
         )
-        
+
         return {
             "message": "알림이 성공적으로 발송되었습니다",
             "notification_id": notification_id
         }
-        
+
     except Exception as e:
         logger.error(f"알림 발송 실패: {str(e)}")
         raise HTTPException(status_code=500, detail=f"알림 발송 실패: {str(e)}")
@@ -645,7 +645,7 @@ if __name__ == "__main__":
     # 환경 변수 설정
     host = os.getenv("HOST", "0.0.0.0")
     port = int(os.getenv("PORT", "8000"))
-    
+
     # 서버 실행
     uvicorn.run(
         "main:app",
