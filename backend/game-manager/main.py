@@ -2,7 +2,7 @@ from fastapi import FastAPI, Depends, HTTPException, status, WebSocket, WebSocke
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy import create_engine, Column, Integer, String, DateTime, Boolean, Float, Text, ForeignKey
-from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import declarative_base
 from sqlalchemy.orm import sessionmaker, Session, relationship
 from sqlalchemy.dialects.postgresql import UUID
 from pydantic import BaseModel
@@ -57,8 +57,8 @@ class GameStatus(str, Enum):
 # Database Models
 class GameSession(Base):
     __tablename__ = "game_sessions"
-    
-    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     puzzle_id = Column(String, nullable=False)
     user_id = Column(Integer, nullable=False)
     game_mode = Column(String, nullable=False)
@@ -74,21 +74,21 @@ class GameSession(Base):
 
 class GameMove(Base):
     __tablename__ = "game_moves"
-    
+
     id = Column(Integer, primary_key=True, index=True)
-    session_id = Column(String, ForeignKey("game_sessions.id"), nullable=False)
+    session_id = Column(UUID(as_uuid=True), ForeignKey("game_sessions.id"), nullable=False)
     piece_id = Column(String, nullable=False)
     x = Column(Float, nullable=False)
     y = Column(Float, nullable=False)
     rotation = Column(Float, default=0)
     is_correct = Column(Boolean, default=False)
     timestamp = Column(DateTime, default=datetime.utcnow)
-    
+
     session = relationship("GameSession", backref="moves")
 
 class Leaderboard(Base):
     __tablename__ = "leaderboard"
-    
+
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, nullable=False)
     username = Column(String, nullable=False)
@@ -114,7 +114,7 @@ class GameSessionResponse(BaseModel):
     score: Optional[int]
     moves_count: int
     hints_used: int
-    
+
     class Config:
         from_attributes = True
 
@@ -132,7 +132,7 @@ class GameMoveResponse(BaseModel):
     rotation: float
     is_correct: bool
     timestamp: datetime
-    
+
     class Config:
         from_attributes = True
 
@@ -142,7 +142,7 @@ class LeaderboardEntry(BaseModel):
     completion_time: int
     game_mode: str
     created_at: datetime
-    
+
     class Config:
         from_attributes = True
 
@@ -154,22 +154,22 @@ class GameCompletion(BaseModel):
 class ConnectionManager:
     def __init__(self):
         self.active_connections: Dict[str, List[WebSocket]] = {}
-    
+
     async def connect(self, websocket: WebSocket, session_id: str):
         await websocket.accept()
         if session_id not in self.active_connections:
             self.active_connections[session_id] = []
         self.active_connections[session_id].append(websocket)
-    
+
     def disconnect(self, websocket: WebSocket, session_id: str):
         if session_id in self.active_connections:
             self.active_connections[session_id].remove(websocket)
             if not self.active_connections[session_id]:
                 del self.active_connections[session_id]
-    
+
     async def send_personal_message(self, message: str, websocket: WebSocket):
         await websocket.send_text(message)
-    
+
     async def broadcast_to_session(self, message: str, session_id: str):
         if session_id in self.active_connections:
             for connection in self.active_connections[session_id]:
@@ -208,23 +208,23 @@ async def get_current_user_id(credentials: HTTPAuthorizationCredentials = Depend
 def calculate_score(completion_time: int, moves_count: int, hints_used: int, game_mode: str) -> int:
     """Calculate game score based on performance metrics"""
     base_score = 1000
-    
+
     # Time bonus (faster completion = higher score)
     time_bonus = max(0, 500 - (completion_time // 10))
-    
+
     # Move penalty (fewer moves = higher score)
     move_penalty = min(300, moves_count * 2)
-    
+
     # Hint penalty
     hint_penalty = hints_used * 50
-    
+
     # Game mode multiplier
     mode_multiplier = {
         GameMode.SINGLE: 1.0,
         GameMode.CHALLENGE: 1.5,
         GameMode.MULTIPLAYER: 2.0
     }.get(game_mode, 1.0)
-    
+
     final_score = int((base_score + time_bonus - move_penalty - hint_penalty) * mode_multiplier)
     return max(0, final_score)
 
@@ -239,14 +239,14 @@ def validate_piece_placement(piece_id: str, x: float, y: float, rotation: float)
         "piece_3": {"x": 100, "y": 200, "rotation": 180},
         "piece_4": {"x": 200, "y": 200, "rotation": 270},
     }
-    
+
     if piece_id not in correct_positions:
         return False
-    
+
     correct = correct_positions[piece_id]
     tolerance = 10  # pixels
     rotation_tolerance = 15  # degrees
-    
+
     return (abs(x - correct["x"]) <= tolerance and 
             abs(y - correct["y"]) <= tolerance and
             abs(rotation - correct["rotation"]) <= rotation_tolerance)
@@ -268,7 +268,7 @@ async def create_game_session(
     db.add(db_session)
     db.commit()
     db.refresh(db_session)
-    
+
     return db_session
 
 @app.get("/sessions/{session_id}", response_model=GameSessionResponse)
@@ -282,10 +282,10 @@ async def get_game_session(
         GameSession.id == session_id,
         GameSession.user_id == user_id
     ).first()
-    
+
     if not session:
         raise HTTPException(status_code=404, detail="Game session not found")
-    
+
     return session
 
 @app.post("/sessions/{session_id}/moves", response_model=GameMoveResponse)
@@ -302,13 +302,13 @@ async def make_move(
         GameSession.user_id == user_id,
         GameSession.status == GameStatus.ACTIVE
     ).first()
-    
+
     if not session:
         raise HTTPException(status_code=404, detail="Active game session not found")
-    
+
     # Validate piece placement
     is_correct = validate_piece_placement(move.piece_id, move.x, move.y, move.rotation)
-    
+
     # Create move record
     db_move = GameMove(
         session_id=session_id,
@@ -319,12 +319,12 @@ async def make_move(
         is_correct=is_correct
     )
     db.add(db_move)
-    
+
     # Update session move count
     session.moves_count += 1
     db.commit()
     db.refresh(db_move)
-    
+
     # Broadcast move to other players in multiplayer mode
     if session.game_mode == GameMode.MULTIPLAYER:
         move_data = {
@@ -337,7 +337,7 @@ async def make_move(
             "user_id": user_id
         }
         await manager.broadcast_to_session(json.dumps(move_data), session_id)
-    
+
     return db_move
 
 @app.post("/sessions/{session_id}/complete")
@@ -353,20 +353,20 @@ async def complete_game(
         GameSession.user_id == user_id,
         GameSession.status == GameStatus.ACTIVE
     ).first()
-    
+
     if not session:
         raise HTTPException(status_code=404, detail="Active game session not found")
-    
+
     # Update session
     session.status = GameStatus.COMPLETED
     session.end_time = datetime.utcnow()
     session.completion_time = completion.completion_time
     session.score = completion.final_score
-    
+
     # Add to leaderboard
     # First, get username (in real implementation, fetch from auth service)
     username = f"user_{user_id}"
-    
+
     leaderboard_entry = Leaderboard(
         user_id=user_id,
         username=username,
@@ -377,7 +377,7 @@ async def complete_game(
     )
     db.add(leaderboard_entry)
     db.commit()
-    
+
     return {
         "message": "Game completed successfully",
         "completion_time": completion.completion_time,
@@ -394,12 +394,12 @@ async def get_leaderboard(
 ):
     """Get leaderboard entries"""
     query = db.query(Leaderboard)
-    
+
     if puzzle_id:
         query = query.filter(Leaderboard.puzzle_id == puzzle_id)
     if game_mode:
         query = query.filter(Leaderboard.game_mode == game_mode)
-    
+
     entries = query.order_by(Leaderboard.score.desc()).limit(limit).all()
     return entries
 
@@ -414,7 +414,7 @@ async def list_game_sessions(
     sessions = db.query(GameSession).filter(
         GameSession.user_id == user_id
     ).offset(skip).limit(limit).all()
-    
+
     return sessions
 
 @app.websocket("/ws/{session_id}")
