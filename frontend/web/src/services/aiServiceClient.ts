@@ -99,9 +99,9 @@ class AIServiceClient {
   ): Promise<APIResponse<T>> {
     try {
       const url = `${this.baseURL}${endpoint}`
-      const headers: HeadersInit = {
+      const headers: Record<string, string> = {
         'Content-Type': 'application/json',
-        ...options.headers,
+        ...(options.headers as Record<string, string>),
       }
 
       if (this.apiKey) {
@@ -139,8 +139,8 @@ class AIServiceClient {
   ): Promise<APIResponse<T>> {
     try {
       const url = `${this.baseURL}${endpoint}`
-      const headers: HeadersInit = {
-        ...options.headers,
+      const headers: Record<string, string> = {
+        ...(options.headers as Record<string, string>),
       }
 
       if (this.apiKey) {
@@ -217,7 +217,7 @@ class AIServiceClient {
   ): Promise<APIResponse<{ task_id: string; status: string; message: string; check_status_url: string }>> {
     const formData = new FormData()
     formData.append('file', file)
-    
+
     if (Object.keys(request).length > 0) {
       formData.append('request', JSON.stringify(request))
     }
@@ -309,7 +309,7 @@ class AIServiceClient {
 
       try {
         const statusResponse = await this.getPuzzleStatus(taskId)
-        
+
         if (!statusResponse.success) {
           onError(statusResponse.error || '상태 확인 실패')
           return
@@ -320,7 +320,7 @@ class AIServiceClient {
 
         if (status.status === 'completed') {
           isPolling = false
-          
+
           // 결과 조회
           const resultResponse = await this.getPuzzleResult(taskId)
           if (resultResponse.success) {
@@ -392,7 +392,7 @@ class AIServiceClient {
       if (cached) {
         const data = JSON.parse(cached)
         const now = Date.now()
-        
+
         // 1시간 캐시
         if (now - data.timestamp < 3600000) {
           return {
