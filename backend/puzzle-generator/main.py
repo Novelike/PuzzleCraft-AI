@@ -103,7 +103,7 @@ async def health_check():
     try:
         # AI 서비스 상태 확인
         ai_status = await ai_integrator.health_check_all_services()
-        
+
         return {
             "status": "healthy",
             "timestamp": datetime.now().isoformat(),
@@ -129,21 +129,21 @@ async def analyze_image_complexity(file: UploadFile = File(...)):
         # 파일 검증
         if not file.content_type.startswith('image/'):
             raise HTTPException(status_code=400, detail="이미지 파일만 업로드 가능합니다")
-        
+
         # 임시 파일 저장
         file_id = str(uuid.uuid4())
         temp_path = TEMP_DIR / f"{file_id}_{file.filename}"
-        
+
         async with aiofiles.open(temp_path, 'wb') as f:
             content = await file.read()
             await f.write(content)
-        
+
         # 복잡도 분석 수행
         complexity_analysis = await difficulty_analyzer.analyze_image_complexity(str(temp_path))
-        
+
         # 임시 파일 정리
         os.unlink(temp_path)
-        
+
         # 결과 반환 (numpy 배열은 제외)
         result = {
             "file_id": file_id,
@@ -161,9 +161,9 @@ async def analyze_image_complexity(file: UploadFile = File(...)):
             },
             "timestamp": datetime.now().isoformat()
         }
-        
+
         return result
-        
+
     except Exception as e:
         logger.error(f"이미지 복잡도 분석 실패: {str(e)}")
         raise HTTPException(status_code=500, detail=f"복잡도 분석 실패: {str(e)}")
@@ -191,12 +191,12 @@ async def generate_difficulty_profile(
             complexity_map=None,  # 웹 API에서는 제외
             recommendations=complexity_analysis["recommendations"]
         )
-        
+
         # 난이도 프로필 생성
         difficulty_profile = await difficulty_analyzer.generate_difficulty_profile(
             analysis, target_audience, accessibility_requirements
         )
-        
+
         return {
             "difficulty_score": difficulty_profile.difficulty_score,
             "recommended_piece_count": difficulty_profile.recommended_piece_count,
@@ -207,7 +207,7 @@ async def generate_difficulty_profile(
             "adaptive_hints": difficulty_profile.adaptive_hints,
             "timestamp": datetime.now().isoformat()
         }
-        
+
     except Exception as e:
         logger.error(f"난이도 프로필 생성 실패: {str(e)}")
         raise HTTPException(status_code=500, detail=f"난이도 프로필 생성 실패: {str(e)}")
@@ -228,20 +228,20 @@ async def generate_intelligent_puzzle(
             puzzle_request = PuzzleGenerationRequest(**request_data)
         else:
             puzzle_request = PuzzleGenerationRequest()
-        
+
         # 파일 검증
         if not file.content_type.startswith('image/'):
             raise HTTPException(status_code=400, detail="이미지 파일만 업로드 가능합니다")
-        
+
         # 작업 ID 생성
         task_id = str(uuid.uuid4())
-        
+
         # 임시 파일 저장
         temp_path = TEMP_DIR / f"{task_id}_{file.filename}"
         async with aiofiles.open(temp_path, 'wb') as f:
             content = await file.read()
             await f.write(content)
-        
+
         # 작업 상태 초기화
         puzzle_tasks[task_id] = PuzzleTaskStatus(
             task_id=task_id,
@@ -251,7 +251,7 @@ async def generate_intelligent_puzzle(
             created_at=datetime.now(),
             updated_at=datetime.now()
         )
-        
+
         # 백그라운드 작업 시작
         background_tasks.add_task(
             process_puzzle_generation,
@@ -260,14 +260,14 @@ async def generate_intelligent_puzzle(
             puzzle_request,
             file.filename
         )
-        
+
         return {
             "task_id": task_id,
             "status": "accepted",
             "message": "퍼즐 생성 작업이 시작되었습니다",
             "check_status_url": f"/api/v1/puzzles/status/{task_id}"
         }
-        
+
     except Exception as e:
         logger.error(f"퍼즐 생성 요청 실패: {str(e)}")
         raise HTTPException(status_code=500, detail=f"퍼즐 생성 요청 실패: {str(e)}")
@@ -288,11 +288,11 @@ async def process_puzzle_generation(
             puzzle_tasks[task_id].estimated_time_remaining = estimated_time
             puzzle_tasks[task_id].updated_at = datetime.now()
             puzzle_tasks[task_id].status = "processing"
-        
+
         # 1. 이미지 복잡도 분석 (20%)
         update_status(0.1, "이미지 복잡도 분석 중", 180)
         complexity_analysis = await difficulty_analyzer.analyze_image_complexity(image_path)
-        
+
         # 2. 난이도 프로필 생성 (30%)
         update_status(0.2, "난이도 프로필 생성 중", 150)
         difficulty_profile = await difficulty_analyzer.generate_difficulty_profile(
@@ -300,25 +300,22 @@ async def process_puzzle_generation(
             request.target_audience,
             request.accessibility_requirements
         )
-        
+
         # 3. 퍼즐 설정 최적화 (40%)
         update_status(0.3, "퍼즐 설정 최적화 중", 120)
-        
+
         # PuzzleConfig 생성
         puzzle_config = PuzzleConfig(
-            puzzle_type=PuzzleType(request.puzzle_type.upper()),
-            difficulty=DifficultyLevel(request.difficulty.upper()),
+            puzzle_type=PuzzleType(request.puzzle_type.lower()),
+            difficulty=DifficultyLevel(request.difficulty.lower()),
             piece_count=request.piece_count or difficulty_profile.recommended_piece_count,
-            piece_shape=PieceShape(request.piece_shape.upper()),
-            enable_ai_enhancement=request.enable_ai_optimization,
-            style_type=request.style_type,
-            target_audience=request.target_audience,
-            accessibility_features=request.accessibility_requirements
+            use_ai_enhancement=request.enable_ai_optimization,
+            style_type=request.style_type
         )
-        
+
         # 4. AI 서비스 통합 처리 (60%)
         update_status(0.4, "AI 서비스 처리 중", 90)
-        
+
         if request.enable_ai_optimization:
             # 병렬 AI 분석 수행
             ai_results = await ai_integrator.process_parallel_ai_analysis(
@@ -328,14 +325,14 @@ async def process_puzzle_generation(
                 include_style_preview=request.style_type is not None,
                 style_type=request.style_type or "watercolor"
             )
-        
+
         # 5. 퍼즐 생성 (80%)
         update_status(0.6, "퍼즐 조각 생성 중", 60)
         puzzle_result = await puzzle_engine.generate_intelligent_puzzle(image_path, puzzle_config)
-        
+
         # 6. 결과 최적화 및 메타데이터 생성 (100%)
         update_status(0.8, "결과 최적화 중", 30)
-        
+
         # 최종 결과 구성
         final_result = {
             "puzzle_id": task_id,
@@ -366,28 +363,28 @@ async def process_puzzle_generation(
             },
             "created_at": datetime.now().isoformat()
         }
-        
+
         # 작업 완료
         update_status(1.0, "완료")
         puzzle_tasks[task_id].status = "completed"
         puzzle_tasks[task_id].result = final_result
-        
+
         # 임시 파일 정리
         try:
             os.unlink(image_path)
         except:
             pass
-        
+
         logger.info(f"퍼즐 생성 완료: {task_id}")
-        
+
     except Exception as e:
         logger.error(f"퍼즐 생성 처리 실패 {task_id}: {str(e)}")
         logger.error(traceback.format_exc())
-        
+
         puzzle_tasks[task_id].status = "failed"
         puzzle_tasks[task_id].error_message = str(e)
         puzzle_tasks[task_id].updated_at = datetime.now()
-        
+
         # 임시 파일 정리
         try:
             os.unlink(image_path)
@@ -401,9 +398,9 @@ async def get_puzzle_status(task_id: str):
     """퍼즐 생성 작업 상태 확인"""
     if task_id not in puzzle_tasks:
         raise HTTPException(status_code=404, detail="작업을 찾을 수 없습니다")
-    
+
     task_status = puzzle_tasks[task_id]
-    
+
     return {
         "task_id": task_status.task_id,
         "status": task_status.status,
@@ -422,12 +419,12 @@ async def get_puzzle_result(task_id: str):
     """퍼즐 생성 결과 조회"""
     if task_id not in puzzle_tasks:
         raise HTTPException(status_code=404, detail="작업을 찾을 수 없습니다")
-    
+
     task_status = puzzle_tasks[task_id]
-    
+
     if task_status.status != "completed":
         raise HTTPException(status_code=400, detail="작업이 아직 완료되지 않았습니다")
-    
+
     return task_status.result
 
 
@@ -443,30 +440,29 @@ async def generate_puzzle_preview(
         # 파일 검증
         if not file.content_type.startswith('image/'):
             raise HTTPException(status_code=400, detail="이미지 파일만 업로드 가능합니다")
-        
+
         # 임시 파일 저장
         file_id = str(uuid.uuid4())
         temp_path = TEMP_DIR / f"{file_id}_{file.filename}"
-        
+
         async with aiofiles.open(temp_path, 'wb') as f:
             content = await file.read()
             await f.write(content)
-        
+
         # 간단한 퍼즐 설정으로 미리보기 생성
         config = PuzzleConfig(
             puzzle_type=PuzzleType.CLASSIC,
             difficulty=DifficultyLevel.MEDIUM,
             piece_count=piece_count,
-            piece_shape=PieceShape(piece_shape.upper()),
-            enable_ai_enhancement=False
+            use_ai_enhancement=False
         )
-        
+
         # 미리보기 생성 (AI 처리 없이)
         preview_result = await puzzle_engine.generate_intelligent_puzzle(str(temp_path), config)
-        
+
         # 임시 파일 정리
         os.unlink(temp_path)
-        
+
         return {
             "preview_id": file_id,
             "filename": file.filename,
@@ -479,7 +475,7 @@ async def generate_puzzle_preview(
             },
             "timestamp": datetime.now().isoformat()
         }
-        
+
     except Exception as e:
         logger.error(f"퍼즐 미리보기 생성 실패: {str(e)}")
         raise HTTPException(status_code=500, detail=f"미리보기 생성 실패: {str(e)}")
@@ -506,18 +502,18 @@ async def optimize_puzzle_for_user(
             complexity_map=None,
             recommendations=complexity_analysis["recommendations"]
         )
-        
+
         # 사용자 맞춤 최적화
         optimized_config = await difficulty_analyzer.optimize_difficulty_for_user(
             analysis, user_profile.dict()
         )
-        
+
         return {
             "optimized_config": optimized_config,
             "user_profile": user_profile.dict(),
             "timestamp": datetime.now().isoformat()
         }
-        
+
     except Exception as e:
         logger.error(f"사용자 맞춤 최적화 실패: {str(e)}")
         raise HTTPException(status_code=500, detail=f"최적화 실패: {str(e)}")
@@ -573,7 +569,7 @@ async def get_difficulty_statistics():
 async def shutdown_event():
     """서비스 종료시 정리 작업"""
     logger.info("퍼즐 생성 서비스 종료 중...")
-    
+
     # 임시 파일 정리
     try:
         for file_path in TEMP_DIR.glob("*"):
@@ -581,13 +577,13 @@ async def shutdown_event():
                 os.unlink(file_path)
     except Exception as e:
         logger.error(f"임시 파일 정리 실패: {str(e)}")
-    
+
     logger.info("퍼즐 생성 서비스 종료 완료")
 
 
 if __name__ == "__main__":
     import uvicorn
-    
+
     # 개발 서버 실행
     uvicorn.run(
         "main:app",
