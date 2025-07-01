@@ -252,7 +252,7 @@ class AIServiceClient {
     formData.append('piece_count', pieceCount.toString())
     formData.append('piece_shape', pieceShape)
 
-    return this.makeFormRequest('/api/v1/puzzles/preview', formData)
+    return this.makeFormRequest('/preview', formData)
   }
 
   /**
@@ -262,7 +262,7 @@ class AIServiceClient {
     complexityAnalysis: any,
     userProfile: UserProfile
   ): Promise<APIResponse<any>> {
-    return this.makeRequest('/api/v1/puzzles/optimize-for-user', {
+    return this.makeRequest('/optimize-for-user', {
       method: 'POST',
       body: JSON.stringify({
         complexity_analysis: complexityAnalysis,
@@ -275,21 +275,21 @@ class AIServiceClient {
    * AI 서비스 상태 확인
    */
   async getAIServicesStatus(): Promise<APIResponse<any>> {
-    return this.makeRequest('/api/v1/ai-services/status')
+    return this.makeRequest('/ai-services/status')
   }
 
   /**
    * 서비스 기능 정보
    */
   async getServiceCapabilities(): Promise<APIResponse<any>> {
-    return this.makeRequest('/api/v1/info/capabilities')
+    return this.makeRequest('/info/capabilities')
   }
 
   /**
    * 난이도 분석 통계
    */
   async getDifficultyStatistics(): Promise<APIResponse<any>> {
-    return this.makeRequest('/api/v1/stats/difficulty')
+    return this.makeRequest('/stats/difficulty')
   }
 
   /**

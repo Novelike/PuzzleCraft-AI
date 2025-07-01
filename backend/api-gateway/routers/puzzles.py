@@ -190,6 +190,44 @@ async def get_puzzle_result(task_id: str):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+@router.post("/preview")
+async def generate_puzzle_preview(
+    file: UploadFile = File(...),
+    piece_count: int = 50,
+    piece_shape: str = "classic"
+):
+    """퍼즐 미리보기 생성 - puzzle-generator 서비스로 프록시"""
+    try:
+        # Forward the file and parameters to puzzle-generator service
+        files = {"file": (file.filename, await file.read(), file.content_type)}
+        data = {
+            "piece_count": str(piece_count),
+            "piece_shape": piece_shape
+        }
+
+        async with httpx.AsyncClient(timeout=60.0) as client:
+            response = await client.post(
+                f"{PUZZLE_GENERATOR_URL}/api/v1/puzzles/preview",
+                files=files,
+                data=data
+            )
+
+            if response.status_code == 200:
+                return response.json()
+            else:
+                raise HTTPException(
+                    status_code=response.status_code,
+                    detail=f"Puzzle generator service error: {response.text}"
+                )
+
+    except httpx.RequestError as e:
+        raise HTTPException(
+            status_code=503,
+            detail=f"Cannot connect to puzzle generator service: {str(e)}"
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 # Legacy endpoints for backward compatibility
 @router.post("/generate", response_model=PuzzleResponse)
 async def generate_puzzle(
