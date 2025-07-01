@@ -14,9 +14,9 @@ ERROR_LOG="$LOG_DIR/deploy_error_$TIMESTAMP.log"
 # 외부 데이터베이스 설정
 POSTGRES_HOST="10.0.0.207"
 POSTGRES_PORT="5432"
-POSTGRES_DB="puzzlecraft"
+POSTGRES_DB="puzzlecraft_db"
 POSTGRES_USER="puzzlecraft"
-POSTGRES_PASSWORD="puzzlecraft"
+POSTGRES_PASSWORD="puzzlecraft123"
 
 # 로컬 Redis 설정
 REDIS_HOST="localhost"
@@ -26,12 +26,12 @@ REDIS_PORT="6379"
 BACKEND_SERVICES=(
     "api-gateway:8000"
     "auth-service:8001"
-    "ocr-service:8002"
-    "puzzle-generator:8003"
-    "realtime-processor:8004"
-    "segmentation-service:8005"
-    "style-transfer:8006"
-    "game-manager:8007"
+    "game-manager:8002"
+    "ocr-service:8003"
+    "puzzle-generator:8004"
+    "realtime-processor:8005"
+    "segmentation-service:8006"
+    "style-transfer:8007"
 )
 
 # 색상 정의

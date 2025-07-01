@@ -31,12 +31,12 @@ show_status() {
         case $service in
             "puzzlecraft-api-gateway") port="8000" ;;
             "puzzlecraft-auth-service") port="8001" ;;
-            "puzzlecraft-ocr-service") port="8002" ;;
-            "puzzlecraft-puzzle-generator") port="8003" ;;
-            "puzzlecraft-realtime-processor") port="8004" ;;
-            "puzzlecraft-segmentation-service") port="8005" ;;
-            "puzzlecraft-style-transfer") port="8006" ;;
-            "puzzlecraft-game-manager") port="8007" ;;
+            "puzzlecraft-game-manager") port="8002" ;;
+            "puzzlecraft-ocr-service") port="8003" ;;
+            "puzzlecraft-puzzle-generator") port="8004" ;;
+            "puzzlecraft-realtime-processor") port="8005" ;;
+            "puzzlecraft-segmentation-service") port="8006" ;;
+            "puzzlecraft-style-transfer") port="8007" ;;
         esac
 
         case $status in
