@@ -5,7 +5,7 @@
 # =============================================================================
 
 # 설정 변수
-PROJECT_NAME="PuzzleCraft_AI"
+#PROJECT_NAME="PuzzleCraft_AI"
 LOG_DIR="./logs"
 TIMESTAMP=$(date +%Y%m%d_%H%M%S)
 DEPLOY_LOG="$LOG_DIR/deploy_$TIMESTAMP.log"
@@ -14,9 +14,9 @@ ERROR_LOG="$LOG_DIR/deploy_error_$TIMESTAMP.log"
 # 외부 데이터베이스 설정
 POSTGRES_HOST="10.0.0.207"
 POSTGRES_PORT="5432"
-POSTGRES_DB="puzzlecraft_db"
+POSTGRES_DB="puzzlecraft"
 POSTGRES_USER="puzzlecraft"
-POSTGRES_PASSWORD="puzzlecraft123"
+POSTGRES_PASSWORD="puzzlecraft"
 
 # 로컬 Redis 설정
 REDIS_HOST="localhost"
@@ -102,10 +102,15 @@ setup_environment() {
     curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash -
     sudo apt install -y nodejs
 
+    # PostgreSQL 최신 클라이언트 설치 (버전 호환성 개선)
+    log "INFO" "PostgreSQL 최신 클라이언트를 설치합니다..."
+    wget --quiet -O - https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo apt-key add -
+    echo "deb http://apt.postgresql.org/pub/repos/apt/ $(lsb_release -cs)-pgdg main" | sudo tee /etc/apt/sources.list.d/pgdg.list
+
     # 필수 패키지 설치
     log "INFO" "필수 패키지를 설치합니다..."
     sudo apt update 2>&1 | tee -a "$DEPLOY_LOG"
-    sudo apt install -y python3 python3-pip python3-venv nginx postgresql-client redis-tools 2>&1 | tee -a "$DEPLOY_LOG"
+    sudo apt install -y python3 python3-pip python3-venv nginx postgresql-client-17 redis-tools 2>&1 | tee -a "$DEPLOY_LOG"
 
     # Python 버전 확인
     local python_version=$(python3 --version 2>/dev/null || echo "없음")
@@ -114,17 +119,34 @@ setup_environment() {
     # Node.js 버전 확인
     local node_version=$(node --version 2>/dev/null || echo "없음")
     log "INFO" "Node.js 버전: $node_version"
+    
+    # PostgreSQL 클라이언트 버전 확인
+    local psql_version=$(psql --version 2>/dev/null || echo "없음")
+    log "INFO" "PostgreSQL 클라이언트 버전: $psql_version"
 }
 
 # PostgreSQL 연결 테스트
 test_postgres_connection() {
     log "INFO" "PostgreSQL 연결 테스트: $POSTGRES_HOST:$POSTGRES_PORT"
 
-    if PGPASSWORD="$POSTGRES_PASSWORD" psql -h "$POSTGRES_HOST" -p "$POSTGRES_PORT" -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "SELECT 1;" &>/dev/null; then
+    # 더 안정적인 연결 테스트 방법 사용
+    if timeout 10 bash -c "PGPASSWORD='$POSTGRES_PASSWORD' psql -h '$POSTGRES_HOST' -p '$POSTGRES_PORT' -U '$POSTGRES_USER' -d '$POSTGRES_DB' -c 'SELECT 1;' > /dev/null 2>&1"; then
         log "INFO" "PostgreSQL 연결 성공"
         return 0
     else
         log "ERROR" "PostgreSQL 연결 실패"
+        # 상세한 오류 정보 제공
+        log "INFO" "연결 매개변수 확인:"
+        log "INFO" "  호스트: $POSTGRES_HOST"
+        log "INFO" "  포트: $POSTGRES_PORT"
+        log "INFO" "  사용자: $POSTGRES_USER"
+        log "INFO" "  데이터베이스: $POSTGRES_DB"
+        
+        # 직접 연결 시도해서 오류 메시지 캡처
+        PGPASSWORD="$POSTGRES_PASSWORD" psql -h "$POSTGRES_HOST" -p "$POSTGRES_PORT" -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "SELECT 1;" 2>&1 | head -5 | while read line; do
+            log "INFO" "  오류 상세: $line"
+        done
+        
         return 1
     fi
 }
