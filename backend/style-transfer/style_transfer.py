@@ -86,38 +86,72 @@ class NeuralStyleTransfer:
                    output_path: Optional[str] = None, iterations: int = 300) -> Dict[str, Any]:
         """Apply style transfer to content image"""
         try:
+            logger.info(f"Starting style transfer: {style_type} for image: {content_image_path}")
+
             if style_type not in self.available_styles:
+                error_msg = f"Unsupported style: {style_type}. Available: {list(self.available_styles.keys())}"
+                logger.error(error_msg)
                 return {
                     'success': False,
-                    'error': f"Unsupported style: {style_type}. Available: {list(self.available_styles.keys())}"
+                    'error': error_msg
                 }
 
             # Load and preprocess content image
-            content_image = self._load_image(content_image_path)
+            try:
+                content_image = self._load_image(content_image_path)
+                logger.info(f"Successfully loaded image: {content_image_path}")
+            except Exception as e:
+                error_msg = f"Failed to load image {content_image_path}: {str(e)}"
+                logger.error(error_msg)
+                return {
+                    'success': False,
+                    'error': error_msg
+                }
 
-            # Apply style-specific processing
-            if style_type == 'watercolor':
-                stylized_image = self._apply_watercolor_style(content_image)
-            elif style_type == 'cartoon':
-                stylized_image = self._apply_cartoon_style(content_image)
-            elif style_type == 'pixel_art':
-                stylized_image = self._apply_pixel_art_style(content_image)
-            elif style_type == 'oil_painting':
-                stylized_image = self._apply_oil_painting_style(content_image)
-            elif style_type == 'sketch':
-                stylized_image = self._apply_sketch_style(content_image)
-            elif style_type == 'anime':
-                stylized_image = self._apply_anime_style(content_image)
-            else:
-                # Fallback to basic neural style transfer
-                stylized_image = self._apply_basic_style_transfer(content_image, iterations)
+            # Apply style-specific processing with individual error handling
+            try:
+                if style_type == 'watercolor':
+                    stylized_image = self._apply_watercolor_style(content_image)
+                elif style_type == 'cartoon':
+                    stylized_image = self._apply_cartoon_style(content_image)
+                elif style_type == 'pixel_art':
+                    stylized_image = self._apply_pixel_art_style(content_image)
+                elif style_type == 'oil_painting':
+                    stylized_image = self._apply_oil_painting_style(content_image)
+                elif style_type == 'sketch':
+                    stylized_image = self._apply_sketch_style(content_image)
+                elif style_type == 'anime':
+                    stylized_image = self._apply_anime_style(content_image)
+                else:
+                    # Fallback to basic neural style transfer
+                    stylized_image = self._apply_basic_style_transfer(content_image, iterations)
+
+                logger.info(f"Successfully applied {style_type} style")
+            except Exception as e:
+                error_msg = f"Failed to apply {style_type} style: {str(e)}"
+                logger.error(error_msg)
+                return {
+                    'success': False,
+                    'error': error_msg,
+                    'style_type': style_type
+                }
 
             # Save result
-            if output_path is None:
-                base_path = Path(content_image_path)
-                output_path = base_path.parent / f"{base_path.stem}_{style_type}{base_path.suffix}"
+            try:
+                if output_path is None:
+                    base_path = Path(content_image_path)
+                    output_path = base_path.parent / f"{base_path.stem}_{style_type}{base_path.suffix}"
 
-            self._save_image(stylized_image, str(output_path))
+                self._save_image(stylized_image, str(output_path))
+                logger.info(f"Successfully saved stylized image to: {output_path}")
+            except Exception as e:
+                error_msg = f"Failed to save stylized image: {str(e)}"
+                logger.error(error_msg)
+                return {
+                    'success': False,
+                    'error': error_msg,
+                    'style_type': style_type
+                }
 
             return {
                 'success': True,
@@ -339,9 +373,55 @@ class NeuralStyleTransfer:
 
         return tensor.to(self.device)
 
+    def _test_style_compatibility(self) -> Dict[str, bool]:
+        """Test which styles are actually working"""
+        compatibility = {}
+
+        # Create a small test image
+        test_image = torch.randn(1, 3, 64, 64).to(self.device)
+
+        for style_name in self.available_styles.keys():
+            try:
+                logger.info(f"Testing compatibility for style: {style_name}")
+
+                if style_name == 'watercolor':
+                    self._apply_watercolor_style(test_image)
+                elif style_name == 'cartoon':
+                    self._apply_cartoon_style(test_image)
+                elif style_name == 'pixel_art':
+                    self._apply_pixel_art_style(test_image)
+                elif style_name == 'oil_painting':
+                    self._apply_oil_painting_style(test_image)
+                elif style_name == 'sketch':
+                    self._apply_sketch_style(test_image)
+                elif style_name == 'anime':
+                    self._apply_anime_style(test_image)
+
+                compatibility[style_name] = True
+                logger.info(f"Style {style_name} is compatible")
+
+            except Exception as e:
+                compatibility[style_name] = False
+                logger.warning(f"Style {style_name} is not compatible: {str(e)}")
+
+        return compatibility
+
     def get_available_styles(self) -> Dict[str, Any]:
-        """Get list of available styles with descriptions"""
-        return self.available_styles
+        """Get list of available styles with descriptions (only working ones)"""
+        # Test compatibility on first call
+        if not hasattr(self, '_tested_compatibility'):
+            self._style_compatibility = self._test_style_compatibility()
+            self._tested_compatibility = True
+
+        # Return only working styles
+        working_styles = {}
+        for style_name, style_info in self.available_styles.items():
+            if self._style_compatibility.get(style_name, False):
+                working_styles[style_name] = style_info
+            else:
+                logger.warning(f"Excluding non-working style: {style_name}")
+
+        return working_styles
 
     def batch_apply_styles(self, image_path: str, styles: list, output_dir: str) -> Dict[str, Any]:
         """Apply multiple styles to the same image"""
