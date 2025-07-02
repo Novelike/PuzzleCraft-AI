@@ -1,12 +1,22 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { aiServiceClient, PuzzleTaskStatus } from '../services/aiServiceClient'
 
+interface Player {
+  id: string
+  name: string
+  avatar?: string
+  joinedAt: string
+}
+
 interface RealTimeUpdateOptions {
+  gameId?: string
   pollingInterval?: number
   maxRetries?: number
   onStatusChange?: (status: PuzzleTaskStatus) => void
   onComplete?: (result: any) => void
   onError?: (error: string) => void
+  onPlayerJoin?: (player: Player) => void
+  onPlayerLeave?: (player: Player) => void
 }
 
 interface RealTimeState {
@@ -50,7 +60,7 @@ export const useRealTimeUpdates = (options: RealTimeUpdateOptions = {}) => {
       clearTimeout(pollingRef.current)
       pollingRef.current = null
     }
-    
+
     if (stopPollingRef.current) {
       stopPollingRef.current()
       stopPollingRef.current = null
@@ -126,7 +136,7 @@ export const useRealTimeUpdates = (options: RealTimeUpdateOptions = {}) => {
 
     try {
       const response = await aiServiceClient.getPuzzleStatus(targetTaskId)
-      
+
       if (response.success) {
         const status = response.data!
         updateState({ status, error: null })
@@ -171,7 +181,7 @@ export const useRealTimeUpdates = (options: RealTimeUpdateOptions = {}) => {
     try {
       const response = await aiServiceClient.healthCheck()
       const isHealthy = response.success
-      
+
       updateState({
         isConnected: isHealthy,
         error: isHealthy ? null : '서비스 연결 실패',
@@ -215,14 +225,14 @@ export const useRealTimeUpdates = (options: RealTimeUpdateOptions = {}) => {
   return {
     // 상태
     ...state,
-    
+
     // 액션
     startPolling,
     stopPolling,
     checkStatus,
     retry,
     checkConnection,
-    
+
     // 유틸리티
     canRetry: state.retryCount < maxRetries,
     isActive: state.isPolling && state.isConnected,
@@ -239,16 +249,16 @@ export const useWebSocketUpdates = (url?: string) => {
 
   const connect = useCallback((wsUrl?: string) => {
     const targetUrl = wsUrl || url || 'ws://localhost:8004/ws'
-    
+
     try {
       const ws = new WebSocket(targetUrl)
-      
+
       ws.onopen = () => {
         setIsConnected(true)
         setError(null)
         console.log('WebSocket 연결됨')
       }
-      
+
       ws.onmessage = (event) => {
         try {
           const data = JSON.parse(event.data)
@@ -257,17 +267,17 @@ export const useWebSocketUpdates = (url?: string) => {
           console.error('WebSocket 메시지 파싱 실패:', err)
         }
       }
-      
+
       ws.onclose = () => {
         setIsConnected(false)
         console.log('WebSocket 연결 종료')
       }
-      
+
       ws.onerror = (event) => {
         setError('WebSocket 연결 오류')
         console.error('WebSocket 오류:', event)
       }
-      
+
       setSocket(ws)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'WebSocket 연결 실패')
