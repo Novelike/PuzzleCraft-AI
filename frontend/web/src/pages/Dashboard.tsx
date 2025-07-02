@@ -1,20 +1,53 @@
 import React from 'react'
 import { Link } from 'react-router-dom'
-import { Plus, Play, Trophy, Clock, Star } from 'lucide-react'
+import { Plus, Play, Trophy, Clock, Star, Loader2 } from 'lucide-react'
+import { useUserStats } from '../hooks/useUserStats'
 
 export const Dashboard: React.FC = () => {
-  // TODO: 실제 데이터로 교체
+  const { stats, loading, error } = useUserStats()
+
+  // TODO: 실제 퍼즐 데이터로 교체
   const recentPuzzles = [
     { id: '1', name: '가족 사진', pieces: 100, completed: true, time: '15:30' },
     { id: '2', name: '풍경 사진', pieces: 200, completed: false, time: null },
     { id: '3', name: '반려동물', pieces: 50, completed: true, time: '08:45' }
   ]
 
-  const stats = {
-    totalPuzzles: 15,
-    completedPuzzles: 12,
-    totalTime: '4시간 32분',
-    bestTime: '05:23'
+  // 시간을 포맷하는 헬퍼 함수
+  const formatTime = (seconds: number) => {
+    const hours = Math.floor(seconds / 3600)
+    const minutes = Math.floor((seconds % 3600) / 60)
+    if (hours > 0) {
+      return `${hours}시간 ${minutes}분`
+    }
+    return `${minutes}분`
+  }
+
+  const formatBestTime = (seconds: number) => {
+    const minutes = Math.floor(seconds / 60)
+    const remainingSeconds = seconds % 60
+    return `${minutes.toString().padStart(2, '0')}:${remainingSeconds.toString().padStart(2, '0')}`
+  }
+
+  if (loading) {
+    return (
+      <div className="max-w-6xl mx-auto">
+        <div className="flex items-center justify-center h-64">
+          <Loader2 className="h-8 w-8 animate-spin text-primary-600" />
+          <span className="ml-2 text-gray-600">통계를 불러오는 중...</span>
+        </div>
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="max-w-6xl mx-auto">
+        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-md">
+          통계를 불러오는 중 오류가 발생했습니다: {error}
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -28,23 +61,27 @@ export const Dashboard: React.FC = () => {
       <div className="grid md:grid-cols-4 gap-6 mb-8">
         <div className="card text-center">
           <Trophy className="h-8 w-8 text-yellow-500 mx-auto mb-2" />
-          <div className="text-2xl font-bold text-gray-900">{stats.totalPuzzles}</div>
-          <div className="text-sm text-gray-600">총 퍼즐 수</div>
-        </div>
-        <div className="card text-center">
-          <Star className="h-8 w-8 text-green-500 mx-auto mb-2" />
-          <div className="text-2xl font-bold text-gray-900">{stats.completedPuzzles}</div>
+          <div className="text-2xl font-bold text-gray-900">{stats?.total_puzzles_completed || 0}</div>
           <div className="text-sm text-gray-600">완성한 퍼즐</div>
         </div>
         <div className="card text-center">
+          <Star className="h-8 w-8 text-green-500 mx-auto mb-2" />
+          <div className="text-2xl font-bold text-gray-900">{stats?.current_streak || 0}</div>
+          <div className="text-sm text-gray-600">연속 완성</div>
+        </div>
+        <div className="card text-center">
           <Clock className="h-8 w-8 text-blue-500 mx-auto mb-2" />
-          <div className="text-2xl font-bold text-gray-900">{stats.totalTime}</div>
+          <div className="text-2xl font-bold text-gray-900">
+            {stats?.total_play_time ? formatTime(stats.total_play_time) : '0분'}
+          </div>
           <div className="text-sm text-gray-600">총 플레이 시간</div>
         </div>
         <div className="card text-center">
           <Trophy className="h-8 w-8 text-purple-500 mx-auto mb-2" />
-          <div className="text-2xl font-bold text-gray-900">{stats.bestTime}</div>
-          <div className="text-sm text-gray-600">최고 기록</div>
+          <div className="text-2xl font-bold text-gray-900">
+            {stats?.best_score || 0}
+          </div>
+          <div className="text-sm text-gray-600">최고 점수</div>
         </div>
       </div>
 

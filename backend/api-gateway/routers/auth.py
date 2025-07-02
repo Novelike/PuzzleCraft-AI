@@ -146,3 +146,32 @@ async def logout(credentials: HTTPAuthorizationCredentials = Depends(security)):
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
                 detail="Authentication service unavailable"
             )
+
+@router.post("/refresh", response_model=Token)
+async def refresh_token(credentials: HTTPAuthorizationCredentials = Depends(security)):
+    """토큰 갱신"""
+    async with httpx.AsyncClient() as client:
+        try:
+            response = await client.post(
+                f"{AUTH_SERVICE_URL}/refresh",
+                headers={"Authorization": f"Bearer {credentials.credentials}"},
+                timeout=10.0
+            )
+            
+            if response.status_code == 200:
+                return response.json()
+            elif response.status_code == 401:
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="Token refresh failed"
+                )
+            else:
+                raise HTTPException(
+                    status_code=response.status_code,
+                    detail="Authentication service error"
+                )
+        except httpx.RequestError:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Authentication service unavailable"
+            )

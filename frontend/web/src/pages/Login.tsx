@@ -1,19 +1,31 @@
 import React, { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { LogIn, Mail, Lock } from 'lucide-react'
+import { LogIn, User, Lock } from 'lucide-react'
+import { useAuth } from '../contexts/AuthContext'
 
 export const Login: React.FC = () => {
   const navigate = useNavigate()
+  const { login } = useAuth()
   const [formData, setFormData] = useState({
-    email: '',
+    username: '',
     password: ''
   })
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    // TODO: 실제 로그인 로직 구현
-    console.log('Login attempt:', formData)
-    navigate('/dashboard')
+    setLoading(true)
+    setError('')
+
+    try {
+      await login(formData.username, formData.password)
+      navigate('/dashboard')
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Login failed')
+    } finally {
+      setLoading(false)
+    }
   }
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -35,22 +47,29 @@ export const Login: React.FC = () => {
             </p>
           </div>
 
+          {error && (
+            <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-md mb-4">
+              {error}
+            </div>
+          )}
+
           <form onSubmit={handleSubmit} className="space-y-6">
             <div>
-              <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-2">
-                이메일
+              <label htmlFor="username" className="block text-sm font-medium text-gray-700 mb-2">
+                사용자명
               </label>
               <div className="relative">
-                <Mail className="h-5 w-5 text-gray-400 absolute left-3 top-1/2 transform -translate-y-1/2" />
+                <User className="h-5 w-5 text-gray-400 absolute left-3 top-1/2 transform -translate-y-1/2" />
                 <input
-                  type="email"
-                  id="email"
-                  name="email"
-                  value={formData.email}
+                  type="text"
+                  id="username"
+                  name="username"
+                  value={formData.username}
                   onChange={handleChange}
                   className="input-field pl-10"
-                  placeholder="이메일을 입력하세요"
+                  placeholder="사용자명을 입력하세요"
                   required
+                  disabled={loading}
                 />
               </div>
             </div>
@@ -70,6 +89,7 @@ export const Login: React.FC = () => {
                   className="input-field pl-10"
                   placeholder="비밀번호를 입력하세요"
                   required
+                  disabled={loading}
                 />
               </div>
             </div>
@@ -87,8 +107,9 @@ export const Login: React.FC = () => {
             <button
               type="submit"
               className="w-full btn-primary"
+              disabled={loading}
             >
-              로그인
+              {loading ? '로그인 중...' : '로그인'}
             </button>
           </form>
 

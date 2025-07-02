@@ -1,10 +1,16 @@
-from fastapi import APIRouter, Depends, HTTPException
-from fastapi.security import HTTPBearer
+from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel
 from typing import Optional, List
+import httpx
+import os
 
 router = APIRouter()
 security = HTTPBearer()
+
+# Service URLs
+AUTH_SERVICE_URL = os.getenv("AUTH_SERVICE_URL", "http://auth-service:8001")
+GAME_MANAGER_URL = os.getenv("GAME_MANAGER_URL", "http://game-manager:8002")
 
 class UserProfile(BaseModel):
     username: str
@@ -51,15 +57,55 @@ async def update_user_profile(
     }
 
 @router.get("/stats", response_model=UserStats)
-async def get_user_stats(token: str = Depends(security)):
-    # TODO: 사용자 통계 조회 로직 구현
-    return {
-        "total_puzzles_completed": 25,
-        "total_play_time": 18000,  # 5시간 (초 단위)
-        "average_completion_time": 720.0,  # 12분 (초 단위)
-        "best_score": 1500,
-        "current_streak": 3
-    }
+async def get_user_stats(credentials: HTTPAuthorizationCredentials = Depends(security)):
+    """사용자 통계 조회"""
+    async with httpx.AsyncClient() as client:
+        try:
+            # 먼저 현재 사용자 정보를 가져옴
+            auth_response = await client.get(
+                f"{AUTH_SERVICE_URL}/me",
+                headers={"Authorization": f"Bearer {credentials.credentials}"},
+                timeout=10.0
+            )
+
+            if auth_response.status_code != 200:
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="Could not validate credentials"
+                )
+
+            user_info = auth_response.json()
+            user_id = user_info["id"]
+
+            # 게임 매니저 서비스에서 사용자 통계 조회
+            stats_response = await client.get(
+                f"{GAME_MANAGER_URL}/users/{user_id}/stats",
+                headers={"Authorization": f"Bearer {credentials.credentials}"},
+                timeout=10.0
+            )
+
+            if stats_response.status_code == 200:
+                return stats_response.json()
+            elif stats_response.status_code == 404:
+                # 사용자 통계가 없는 경우 기본값 반환
+                return {
+                    "total_puzzles_completed": 0,
+                    "total_play_time": 0,
+                    "average_completion_time": 0.0,
+                    "best_score": 0,
+                    "current_streak": 0
+                }
+            else:
+                raise HTTPException(
+                    status_code=stats_response.status_code,
+                    detail="Failed to fetch user stats"
+                )
+
+        except httpx.RequestError:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Service unavailable"
+            )
 
 @router.get("/achievements")
 async def get_user_achievements(token: str = Depends(security)):

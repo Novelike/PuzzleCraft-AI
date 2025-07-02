@@ -92,11 +92,12 @@ async def add_security_headers(request: Request, call_next):
 
 # 라우터 등록 (라우터가 존재하는 경우에만)
 try:
-	from routers import auth, puzzles, games, users
+	from routers import auth, puzzles, games, users, style
 	app.include_router(auth.router, prefix="/api/v1/auth", tags=["auth"])
 	app.include_router(puzzles.router, prefix="/api/v1/puzzles", tags=["puzzles"])
 	app.include_router(games.router, prefix="/api/v1/games", tags=["games"])
 	app.include_router(users.router, prefix="/api/v1/users", tags=["users"])
+	app.include_router(style.router, prefix="/api/v1/style", tags=["style"])
 	logger.info("모든 라우터 등록 완료")
 except ImportError as e:
 	logger.warning(f"라우터 임포트 실패: {e}, 기본 엔드포인트만 사용")
@@ -117,7 +118,8 @@ async def root(request: Request):
 			"auth": "/api/v1/auth",
 			"puzzles": "/api/v1/puzzles",
 			"games": "/api/v1/games",
-			"users": "/api/v1/users"
+			"users": "/api/v1/users",
+			"style": "/api/v1/style"
 		}
 	}
 

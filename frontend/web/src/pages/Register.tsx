@@ -1,25 +1,39 @@
 import React, { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { UserPlus, Mail, Lock, User } from 'lucide-react'
+import { useAuth } from '../contexts/AuthContext'
 
 export const Register: React.FC = () => {
   const navigate = useNavigate()
+  const { register } = useAuth()
   const [formData, setFormData] = useState({
     username: '',
     email: '',
     password: '',
     confirmPassword: ''
   })
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    // TODO: 실제 회원가입 로직 구현
+    setLoading(true)
+    setError('')
+
     if (formData.password !== formData.confirmPassword) {
-      alert('비밀번호가 일치하지 않습니다.')
+      setError('비밀번호가 일치하지 않습니다.')
+      setLoading(false)
       return
     }
-    console.log('Register attempt:', formData)
-    navigate('/dashboard')
+
+    try {
+      await register(formData.username, formData.email, formData.password)
+      navigate('/dashboard')
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Registration failed')
+    } finally {
+      setLoading(false)
+    }
   }
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -41,6 +55,12 @@ export const Register: React.FC = () => {
             </p>
           </div>
 
+          {error && (
+            <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-md mb-4">
+              {error}
+            </div>
+          )}
+
           <form onSubmit={handleSubmit} className="space-y-6">
             <div>
               <label htmlFor="username" className="block text-sm font-medium text-gray-700 mb-2">
@@ -57,6 +77,7 @@ export const Register: React.FC = () => {
                   className="input-field pl-10"
                   placeholder="사용자명을 입력하세요"
                   required
+                  disabled={loading}
                 />
               </div>
             </div>
@@ -76,6 +97,7 @@ export const Register: React.FC = () => {
                   className="input-field pl-10"
                   placeholder="이메일을 입력하세요"
                   required
+                  disabled={loading}
                 />
               </div>
             </div>
@@ -95,6 +117,7 @@ export const Register: React.FC = () => {
                   className="input-field pl-10"
                   placeholder="비밀번호를 입력하세요"
                   required
+                  disabled={loading}
                 />
               </div>
             </div>
@@ -114,6 +137,7 @@ export const Register: React.FC = () => {
                   className="input-field pl-10"
                   placeholder="비밀번호를 다시 입력하세요"
                   required
+                  disabled={loading}
                 />
               </div>
             </div>
@@ -129,8 +153,9 @@ export const Register: React.FC = () => {
             <button
               type="submit"
               className="w-full btn-primary"
+              disabled={loading}
             >
-              회원가입
+              {loading ? '회원가입 중...' : '회원가입'}
             </button>
           </form>
 
