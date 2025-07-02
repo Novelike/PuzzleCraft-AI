@@ -20,13 +20,12 @@ import { PuzzlePreview } from '../components/PuzzleCreator/PuzzlePreview'
 // 훅 임포트
 import { usePuzzleGenerator } from '../hooks/usePuzzleGenerator'
 import { useRealTimeUpdates } from '../hooks/useRealTimeUpdates'
+import { useStyleTransfer } from '../hooks/useStyleTransfer'
 
 export const PuzzleCreate: React.FC = () => {
   const navigate = useNavigate()
   const [currentStep, setCurrentStep] = useState<'upload' | 'analyze' | 'style' | 'preview' | 'generate'>('upload')
   const [selectedStyle, setSelectedStyle] = useState<string>('original')
-  const [stylePreviewResults, setStylePreviewResults] = useState<Record<string, string>>({})
-  const [isApplyingStyle, setIsApplyingStyle] = useState(false)
 
   // 퍼즐 생성 훅 사용
   const puzzleGenerator = usePuzzleGenerator({
@@ -41,6 +40,25 @@ export const PuzzleCreate: React.FC = () => {
     },
     onProgress: (progress, step) => {
       console.log(`진행률: ${(progress * 100).toFixed(1)}% - ${step}`)
+    }
+  })
+
+  // 스타일 변환 훅 사용
+  const styleTransfer = useStyleTransfer({
+    onPreviewComplete: (result) => {
+      console.log('스타일 미리보기 완료:', result)
+    },
+    onApplyComplete: (result) => {
+      console.log('스타일 적용 완료:', result)
+      // 스타일이 적용된 이미지로 퍼즐 생성 설정 업데이트
+      puzzleGenerator.updatePuzzleSettings({
+        styled_image_url: result.styled_image_url,
+        style_type: selectedStyle
+      })
+      setCurrentStep('preview')
+    },
+    onError: (error) => {
+      console.error('스타일 변환 오류:', error)
     }
   })
 
@@ -79,29 +97,26 @@ export const PuzzleCreate: React.FC = () => {
 
   // 스타일 미리보기 요청
   const handleStylePreviewRequest = useCallback(async (styleId: string) => {
-    // TODO: 실제 스타일 미리보기 API 호출
-    console.log('스타일 미리보기 요청:', styleId)
+    if (!puzzleGenerator.currentFile) return
 
-    // 임시 미리보기 결과 (실제로는 API에서 받아옴)
-    setTimeout(() => {
-      setStylePreviewResults(prev => ({
-        ...prev,
-        [styleId]: puzzleGenerator.imageUrl || ''
-      }))
-    }, 2000)
-  }, [puzzleGenerator.imageUrl])
+    try {
+      await styleTransfer.generatePreview(puzzleGenerator.currentFile, styleId)
+    } catch (error) {
+      console.error('스타일 미리보기 실패:', error)
+    }
+  }, [puzzleGenerator.currentFile, styleTransfer])
 
   // 스타일 적용
   const handleStyleApply = useCallback(async (styleId: string) => {
-    setIsApplyingStyle(true)
-    // TODO: 실제 스타일 적용 API 호출
-    console.log('스타일 적용:', styleId)
+    if (!puzzleGenerator.currentFile) return
 
-    setTimeout(() => {
-      setIsApplyingStyle(false)
-      setCurrentStep('preview')
-    }, 3000)
-  }, [])
+    try {
+      await styleTransfer.applyStyle(puzzleGenerator.currentFile, styleId)
+      // onApplyComplete 콜백에서 자동으로 preview 단계로 이동됨
+    } catch (error) {
+      console.error('스타일 적용 실패:', error)
+    }
+  }, [puzzleGenerator.currentFile, styleTransfer])
 
   // 퍼즐 미리보기 생성
   const handlePreviewGeneration = useCallback(async () => {
@@ -252,10 +267,11 @@ export const PuzzleCreate: React.FC = () => {
               onStyleSelect={handleStyleSelect}
               onPreviewRequest={handleStylePreviewRequest}
               onApplyStyle={handleStyleApply}
-              isGeneratingPreview={false}
-              isApplyingStyle={isApplyingStyle}
-              previewResults={stylePreviewResults}
+              isGeneratingPreview={styleTransfer.isGeneratingPreview}
+              isApplyingStyle={styleTransfer.isApplyingStyle}
+              previewResults={styleTransfer.previewResults}
               originalImageUrl={puzzleGenerator.imageUrl || undefined}
+              error={styleTransfer.error}
             />
           </div>
         )}

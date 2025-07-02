@@ -25,8 +25,15 @@ export class StyleClient {
     formData.append('file', file)
     formData.append('style_type', styleType)
 
+    const token = localStorage.getItem('token')
+    const headers: Record<string, string> = {}
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`
+    }
+
     const response = await fetch(`${API_BASE_URL}/api/v1/style/preview`, {
       method: 'POST',
+      headers,
       body: formData
     })
 
@@ -38,13 +45,21 @@ export class StyleClient {
     return response.json()
   }
 
-  async applyStyle(file: File, styleType: string): Promise<StyleApplyResponse> {
+  async applyStyle(file: File, styleType: string, iterations: number = 300): Promise<StyleApplyResponse> {
     const formData = new FormData()
     formData.append('file', file)
     formData.append('style_type', styleType)
+    formData.append('iterations', iterations.toString())
+
+    const token = localStorage.getItem('token')
+    const headers: Record<string, string> = {}
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`
+    }
 
     const response = await fetch(`${API_BASE_URL}/api/v1/style/apply`, {
       method: 'POST',
+      headers,
       body: formData
     })
 
@@ -99,7 +114,7 @@ export class StyleClient {
       img.onload = () => {
         // 비율 유지하면서 리사이즈
         let { width, height } = img
-        
+
         if (width > height) {
           if (width > maxWidth) {
             height = (height * maxWidth) / width
