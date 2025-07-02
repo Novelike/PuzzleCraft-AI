@@ -1,9 +1,12 @@
 const API_BASE_URL = import.meta.env.VITE_API_URL
 
 export class AuthClient {
-  private getAuthHeaders() {
+  private getAuthHeaders(): Record<string, string> {
     const token = localStorage.getItem('auth_token')
-    return token ? { Authorization: `Bearer ${token}` } : {}
+    if (token) {
+      return { Authorization: `Bearer ${token}` }
+    }
+    return {}
   }
 
   async login(username: string, password: string) {
