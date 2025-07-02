@@ -6,7 +6,7 @@ import os
 router = APIRouter()
 
 # Style Transfer Service URL
-STYLE_TRANSFER_URL = os.getenv("STYLE_TRANSFER_URL", "http://style-transfer:8005")
+STYLE_TRANSFER_URL = os.getenv("STYLE_TRANSFER_URL", "http://localhost:8005")
 
 @router.post("/preview")
 async def generate_style_preview(
@@ -18,14 +18,14 @@ async def generate_style_preview(
         try:
             files = {"file": (file.filename, file.file, file.content_type)}
             data = {"style_type": style_type, "preview_only": True}
-            
+
             response = await client.post(
                 f"{STYLE_TRANSFER_URL}/apply-style",
                 files=files,
                 data=data,
                 timeout=30.0
             )
-            
+
             if response.status_code == 200:
                 return response.json()
             else:
@@ -33,7 +33,7 @@ async def generate_style_preview(
                     status_code=response.status_code,
                     detail="Style preview generation failed"
                 )
-                
+
         except httpx.RequestError:
             raise HTTPException(
                 status_code=503,
@@ -50,14 +50,14 @@ async def apply_style(
         try:
             files = {"file": (file.filename, file.file, file.content_type)}
             data = {"style_type": style_type}
-            
+
             response = await client.post(
                 f"{STYLE_TRANSFER_URL}/apply-style",
                 files=files,
                 data=data,
                 timeout=60.0
             )
-            
+
             if response.status_code == 200:
                 return response.json()
             else:
@@ -65,7 +65,7 @@ async def apply_style(
                     status_code=response.status_code,
                     detail="Style application failed"
                 )
-                
+
         except httpx.RequestError:
             raise HTTPException(
                 status_code=503,
@@ -81,7 +81,7 @@ async def get_available_styles():
                 f"{STYLE_TRANSFER_URL}/styles",
                 timeout=10.0
             )
-            
+
             if response.status_code == 200:
                 return response.json()
             else:
@@ -94,7 +94,7 @@ async def get_available_styles():
                         {"id": "vintage", "name": "Vintage", "description": "Vintage art style"}
                     ]
                 }
-                
+
         except httpx.RequestError:
             # 서비스가 없는 경우 기본 스타일 목록 반환
             return {

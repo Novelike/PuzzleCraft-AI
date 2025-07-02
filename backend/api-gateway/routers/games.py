@@ -10,7 +10,7 @@ router = APIRouter()
 security = HTTPBearer()
 
 # Game Manager Service URL
-GAME_MANAGER_URL = os.getenv("GAME_MANAGER_URL", "http://game-manager:8002")
+GAME_MANAGER_URL = os.getenv("GAME_MANAGER_URL", "http://localhost:8002")
 
 class GameSession(BaseModel):
     puzzle_id: str

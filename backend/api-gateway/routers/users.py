@@ -9,8 +9,8 @@ router = APIRouter()
 security = HTTPBearer()
 
 # Service URLs
-AUTH_SERVICE_URL = os.getenv("AUTH_SERVICE_URL", "http://auth-service:8001")
-GAME_MANAGER_URL = os.getenv("GAME_MANAGER_URL", "http://game-manager:8002")
+AUTH_SERVICE_URL = os.getenv("AUTH_SERVICE_URL", "http://localhost:8001")
+GAME_MANAGER_URL = os.getenv("GAME_MANAGER_URL", "http://localhost:8002")
 
 class UserProfile(BaseModel):
     username: str
