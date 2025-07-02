@@ -25,7 +25,7 @@ export class StyleClient {
     formData.append('file', file)
     formData.append('style_type', styleType)
 
-    const token = localStorage.getItem('token')
+    const token = localStorage.getItem('auth_token')
     const headers: Record<string, string> = {}
     if (token) {
       headers['Authorization'] = `Bearer ${token}`
@@ -51,7 +51,7 @@ export class StyleClient {
     formData.append('style_type', styleType)
     formData.append('iterations', iterations.toString())
 
-    const token = localStorage.getItem('token')
+    const token = localStorage.getItem('auth_token')
     const headers: Record<string, string> = {}
     if (token) {
       headers['Authorization'] = `Bearer ${token}`
