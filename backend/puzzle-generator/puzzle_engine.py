@@ -43,9 +43,9 @@ class IntelligentPuzzleEngine:
     def __init__(self):
         """Initialize the intelligent puzzle generation engine"""
         self.ai_services = {
-            'ocr': 'http://localhost:8001',
-            'segmentation': 'http://localhost:8002',
-            'style_transfer': 'http://localhost:8003'
+            'ocr': 'http://localhost:8003',
+            'segmentation': 'http://localhost:8006',
+            'style_transfer': 'http://localhost:8007'
         }
         
         # Puzzle piece shapes and patterns
