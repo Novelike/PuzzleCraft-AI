@@ -212,7 +212,15 @@ async def login(user_data: UserLogin, db: Session = Depends(get_db)):
 
 @app.get("/me", response_model=UserResponse)
 async def get_current_user_info(current_user: User = Depends(get_current_user)):
-    return current_user
+    return UserResponse(
+        id=str(current_user.id),
+        username=current_user.username,
+        email=current_user.email,
+        profile_image_url=current_user.profile_image_url,
+        level=current_user.level,
+        total_points=current_user.total_points,
+        created_at=current_user.created_at.isoformat() if current_user.created_at else None
+    )
 
 @app.post("/logout")
 async def logout(current_user: User = Depends(get_current_user)):
