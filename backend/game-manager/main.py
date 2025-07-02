@@ -424,52 +424,41 @@ async def list_game_sessions(
 
 	return sessions
 
-@app.get("/users/{user_id}/stats", response_model=UserStats)
-async def get_user_stats(user_id: str, db: Session = Depends(get_db)):
+@app.get("/stats", response_model=UserStats)
+async def get_user_stats(
+		user_id: int = Depends(get_current_user_id),  # ✅ JWT에서 user_id 추출
+		db: Session = Depends(get_db)
+):
 	"""사용자 게임 통계 조회"""
-	try:
-		# 완료된 게임 세션들 조회
-		completed_sessions = db.query(GameSession).filter(
-			GameSession.user_id == int(user_id),
-			GameSession.status == GameStatus.COMPLETED
-		).all()
+	# 완료된 게임 세션들 조회
+	completed_sessions = db.query(GameSession).filter(
+		GameSession.user_id == user_id,  # ✅ 이미 정수이므로 변환 불필요
+		GameSession.status == GameStatus.COMPLETED
+	).all()
 
-		if not completed_sessions:
-			return UserStats(
-				total_puzzles_completed=0,
-				total_play_time=0,
-				average_completion_time=0.0,
-				best_score=0,
-				current_streak=0
-			)
-
-		# 통계 계산
-		total_puzzles = len(completed_sessions)
-		total_time = sum(session.completion_time or 0 for session in completed_sessions)
-		avg_time = total_time / total_puzzles if total_puzzles > 0 else 0.0
-		best_score = max(session.score or 0 for session in completed_sessions)
-
-		# 현재 연속 완료 일수 계산 (간단한 버전)
-		current_streak = calculate_current_streak(completed_sessions)
-
+	if not completed_sessions:
 		return UserStats(
-			total_puzzles_completed=total_puzzles,
-			total_play_time=total_time,
-			average_completion_time=avg_time,
-			best_score=best_score,
-			current_streak=current_streak
+			total_puzzles_completed=0,
+			total_play_time=0,
+			average_completion_time=0.0,
+			best_score=0,
+			current_streak=0
 		)
 
-	except ValueError:
-		raise HTTPException(
-			status_code=status.HTTP_400_BAD_REQUEST,
-			detail="Invalid user ID format"
-		)
-	except Exception as e:
-		raise HTTPException(
-			status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-			detail="Failed to fetch user statistics"
-		)
+	# 통계 계산 (기존과 동일)
+	total_puzzles = len(completed_sessions)
+	total_time = sum(session.completion_time or 0 for session in completed_sessions)
+	avg_time = total_time / total_puzzles if total_puzzles > 0 else 0.0
+	best_score = max(session.score or 0 for session in completed_sessions)
+	current_streak = calculate_current_streak(completed_sessions)
+
+	return UserStats(
+		total_puzzles_completed=total_puzzles,
+		total_play_time=total_time,
+		average_completion_time=avg_time,
+		best_score=best_score,
+		current_streak=current_streak
+	)
 
 def calculate_current_streak(sessions: List[GameSession]) -> int:
 	"""현재 연속 완료 일수 계산"""
