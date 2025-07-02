@@ -370,6 +370,14 @@ export const PuzzleGameBoard: React.FC<PuzzleGameBoardProps> = ({
     const tabSize = 0.25 // 탭 크기 (조각 크기의 25%)
     const tabDepth = 0.15 // 탭 깊이
 
+    // edges가 없는 경우 기본값 설정
+    const safeEdges = edges || {
+      top: 'flat',
+      right: 'flat', 
+      bottom: 'flat',
+      left: 'flat'
+    }
+
     // 시작점 (왼쪽 상단)
     let currentX = 0
     let currentY = 0
@@ -377,7 +385,7 @@ export const PuzzleGameBoard: React.FC<PuzzleGameBoardProps> = ({
     // 상단 가장자리
     points.push({ x: currentX, y: currentY })
 
-    if (edges.top === 'tab' || edges.top === 'knob') {
+    if (safeEdges.top === 'tab' || safeEdges.top === 'knob') {
       // 상단에 튀어나온 탭
       const tabStart = width * 0.3
       const tabEnd = width * 0.7
@@ -387,7 +395,7 @@ export const PuzzleGameBoard: React.FC<PuzzleGameBoardProps> = ({
       points.push({ x: tabStart, y: currentY - tabHeight })
       points.push({ x: tabEnd, y: currentY - tabHeight })
       points.push({ x: tabEnd, y: currentY })
-    } else if (edges.top === 'blank' || edges.top === 'hole') {
+    } else if (safeEdges.top === 'blank' || safeEdges.top === 'hole') {
       // 상단에 들어간 홈
       const tabStart = width * 0.3
       const tabEnd = width * 0.7
@@ -398,13 +406,14 @@ export const PuzzleGameBoard: React.FC<PuzzleGameBoardProps> = ({
       points.push({ x: tabEnd, y: currentY + tabHeight })
       points.push({ x: tabEnd, y: currentY })
     }
+    // flat인 경우는 직선으로 처리 (추가 점 없음)
 
     // 우상단 모서리
     currentX = width
     points.push({ x: currentX, y: currentY })
 
     // 우측 가장자리
-    if (edges.right === 'tab' || edges.right === 'knob') {
+    if (safeEdges.right === 'tab' || safeEdges.right === 'knob') {
       // 우측에 튀어나온 탭
       const tabStart = height * 0.3
       const tabEnd = height * 0.7
@@ -414,7 +423,7 @@ export const PuzzleGameBoard: React.FC<PuzzleGameBoardProps> = ({
       points.push({ x: currentX + tabWidth, y: tabStart })
       points.push({ x: currentX + tabWidth, y: tabEnd })
       points.push({ x: currentX, y: tabEnd })
-    } else if (edges.right === 'blank' || edges.right === 'hole') {
+    } else if (safeEdges.right === 'blank' || safeEdges.right === 'hole') {
       // 우측에 들어간 홈
       const tabStart = height * 0.3
       const tabEnd = height * 0.7
@@ -431,7 +440,7 @@ export const PuzzleGameBoard: React.FC<PuzzleGameBoardProps> = ({
     points.push({ x: currentX, y: currentY })
 
     // 하단 가장자리
-    if (edges.bottom === 'tab' || edges.bottom === 'knob') {
+    if (safeEdges.bottom === 'tab' || safeEdges.bottom === 'knob') {
       // 하단에 튀어나온 탭
       const tabStart = width * 0.7
       const tabEnd = width * 0.3
@@ -441,7 +450,7 @@ export const PuzzleGameBoard: React.FC<PuzzleGameBoardProps> = ({
       points.push({ x: tabStart, y: currentY + tabHeight })
       points.push({ x: tabEnd, y: currentY + tabHeight })
       points.push({ x: tabEnd, y: currentY })
-    } else if (edges.bottom === 'blank' || edges.bottom === 'hole') {
+    } else if (safeEdges.bottom === 'blank' || safeEdges.bottom === 'hole') {
       // 하단에 들어간 홈
       const tabStart = width * 0.7
       const tabEnd = width * 0.3
@@ -458,7 +467,7 @@ export const PuzzleGameBoard: React.FC<PuzzleGameBoardProps> = ({
     points.push({ x: currentX, y: currentY })
 
     // 좌측 가장자리
-    if (edges.left === 'tab' || edges.left === 'knob') {
+    if (safeEdges.left === 'tab' || safeEdges.left === 'knob') {
       // 좌측에 튀어나온 탭
       const tabStart = height * 0.7
       const tabEnd = height * 0.3
@@ -468,7 +477,7 @@ export const PuzzleGameBoard: React.FC<PuzzleGameBoardProps> = ({
       points.push({ x: currentX - tabWidth, y: tabStart })
       points.push({ x: currentX - tabWidth, y: tabEnd })
       points.push({ x: currentX, y: tabEnd })
-    } else if (edges.left === 'blank' || edges.left === 'hole') {
+    } else if (safeEdges.left === 'blank' || safeEdges.left === 'hole') {
       // 좌측에 들어간 홈
       const tabStart = height * 0.7
       const tabEnd = height * 0.3
@@ -541,16 +550,20 @@ export const PuzzleGameBoard: React.FC<PuzzleGameBoardProps> = ({
       Math.pow(piece1.currentPosition.y - piece2.currentPosition.y, 2)
     )
 
-    const connectionDistance = 25 // 연결 가능한 거리
+    const connectionDistance = 50 // 연결 가능한 거리
 
     if (distance > connectionDistance) return false
 
-    // 인접한 조각인지 확인 (그리드 위치 기준)
+    // edges 정보가 있는 경우 실제 퍼즐 조각 호환성 체크
+    if (piece1.edges && piece2.edges) {
+      return checkEdgeCompatibility(piece1, piece2)
+    }
+
+    // edges 정보가 없는 경우 기존 그리드 기반 로직 사용
     const piece1Grid = piece1.id.split('_')[1] ? parseInt(piece1.id.split('_')[1]) : 0
     const piece2Grid = piece2.id.split('_')[1] ? parseInt(piece2.id.split('_')[1]) : 0
 
-    // 간단한 인접성 체크 (실제로는 더 정교한 로직이 필요)
-    const gridCols = Math.sqrt(gameState.totalPieces) // 대략적인 열 수
+    const gridCols = Math.sqrt(gameState.totalPieces)
     const piece1Row = Math.floor(piece1Grid / gridCols)
     const piece1Col = piece1Grid % gridCols
     const piece2Row = Math.floor(piece2Grid / gridCols)
@@ -562,6 +575,48 @@ export const PuzzleGameBoard: React.FC<PuzzleGameBoardProps> = ({
     )
 
     return isAdjacent
+  }
+
+  // 두 조각의 edges 호환성 체크
+  const checkEdgeCompatibility = (piece1: PuzzlePiece, piece2: PuzzlePiece): boolean => {
+    const pos1 = piece1.currentPosition
+    const pos2 = piece2.currentPosition
+    const w1 = piece1.width
+    const h1 = piece1.height
+    const w2 = piece2.width
+    const h2 = piece2.height
+
+    // 두 조각이 어느 방향으로 인접한지 확인
+    const deltaX = pos2.x - pos1.x
+    const deltaY = pos2.y - pos1.y
+
+    // 우측 연결 (piece1의 right와 piece2의 left)
+    if (Math.abs(deltaX - w1) < 20 && Math.abs(deltaY) < 20) {
+      return isEdgeCompatible(piece1.edges.right, piece2.edges.left)
+    }
+
+    // 좌측 연결 (piece1의 left와 piece2의 right)
+    if (Math.abs(deltaX + w2) < 20 && Math.abs(deltaY) < 20) {
+      return isEdgeCompatible(piece1.edges.left, piece2.edges.right)
+    }
+
+    // 하단 연결 (piece1의 bottom과 piece2의 top)
+    if (Math.abs(deltaY - h1) < 20 && Math.abs(deltaX) < 20) {
+      return isEdgeCompatible(piece1.edges.bottom, piece2.edges.top)
+    }
+
+    // 상단 연결 (piece1의 top과 piece2의 bottom)
+    if (Math.abs(deltaY + h2) < 20 && Math.abs(deltaX) < 20) {
+      return isEdgeCompatible(piece1.edges.top, piece2.edges.bottom)
+    }
+
+    return false
+  }
+
+  // 두 edge가 호환되는지 확인 (tab과 blank이 맞아야 함)
+  const isEdgeCompatible = (edge1: string, edge2: string): boolean => {
+    if (edge1 === 'flat' || edge2 === 'flat') return false
+    return (edge1 === 'tab' && edge2 === 'blank') || (edge1 === 'blank' && edge2 === 'tab')
   }
 
   // 마우스 이벤트 핸들러

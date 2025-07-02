@@ -225,6 +225,9 @@ class ImageSegmentation:
             center_x = (x1 + x2) // 2
             center_y = (y1 + y2) // 2
 
+        # Generate puzzle piece edges
+        edges = self._generate_puzzle_edges(piece_id)
+
         return {
             'id': f"seg_{piece_id}",
             'type': 'segmented_object',
@@ -233,7 +236,15 @@ class ImageSegmentation:
             'bbox': [int(x1), int(y1), int(x2), int(y2)],
             'center': [center_x, center_y],
             'mask_area': int(np.sum(binary_mask)),
-            'difficulty': self._calculate_piece_difficulty(binary_mask, x2-x1, y2-y1)
+            'difficulty': self._calculate_piece_difficulty(binary_mask, x2-x1, y2-y1),
+            'edges': edges,
+            'width': int(x2 - x1),
+            'height': int(y2 - y1),
+            'correctPosition': {'x': int(x1), 'y': int(y1)},
+            'currentPosition': {'x': int(x1), 'y': int(y1)},
+            'rotation': 0,
+            'isPlaced': False,
+            'isSelected': False
         }
 
     def _create_grid_based_pieces(self, image_path: str, piece_count: int) -> Dict[str, Any]:
@@ -260,13 +271,24 @@ class ImageSegmentation:
                     x2 = min(x1 + piece_width, width)
                     y2 = min(y1 + piece_height, height)
 
+                    # Generate edges for grid piece with proper adjacency
+                    edges = self._generate_grid_puzzle_edges(row, col, rows, cols)
+
                     pieces.append({
                         'id': f"grid_{piece_id}",
                         'type': 'grid_piece',
                         'bbox': [x1, y1, x2, y2],
                         'center': [(x1 + x2) // 2, (y1 + y2) // 2],
                         'grid_position': [row, col],
-                        'difficulty': 'medium'
+                        'difficulty': 'medium',
+                        'edges': edges,
+                        'width': x2 - x1,
+                        'height': y2 - y1,
+                        'correctPosition': {'x': x1, 'y': y1},
+                        'currentPosition': {'x': x1, 'y': y1},
+                        'rotation': 0,
+                        'isPlaced': False,
+                        'isSelected': False
                     })
                     piece_id += 1
 
@@ -316,18 +338,89 @@ class ImageSegmentation:
                 x2 = min(x1 + piece_width, width)
                 y2 = min(y1 + piece_height, height)
 
+                # Generate edges for additional grid piece
+                edges = self._generate_grid_puzzle_edges(row, col, rows, cols)
+
                 pieces.append({
                     'id': f"add_{piece_id}",
                     'type': 'additional_grid',
                     'bbox': [x1, y1, x2, y2],
                     'center': [(x1 + x2) // 2, (y1 + y2) // 2],
-                    'difficulty': 'easy'
+                    'difficulty': 'easy',
+                    'edges': edges,
+                    'width': x2 - x1,
+                    'height': y2 - y1,
+                    'correctPosition': {'x': x1, 'y': y1},
+                    'currentPosition': {'x': x1, 'y': y1},
+                    'rotation': 0,
+                    'isPlaced': False,
+                    'isSelected': False
                 })
 
                 piece_id += 1
                 count += 1
 
         return pieces
+
+    def _generate_puzzle_edges(self, piece_id: int) -> Dict[str, str]:
+        """Generate puzzle piece edges (tab/blank) for each side"""
+        import random
+
+        # Set seed based on piece_id for consistent generation
+        random.seed(piece_id * 42)
+
+        edges = {}
+        sides = ['top', 'right', 'bottom', 'left']
+
+        for side in sides:
+            # Randomly assign tab or blank
+            # 50% chance for each
+            edges[side] = random.choice(['tab', 'blank'])
+
+        return edges
+
+    def _generate_grid_puzzle_edges(self, row: int, col: int, total_rows: int, total_cols: int) -> Dict[str, str]:
+        """Generate puzzle piece edges for grid-based pieces with proper adjacency"""
+        import random
+
+        # Use consistent seed based on position
+        random.seed((row * total_cols + col) * 123)
+
+        edges = {}
+
+        # Top edge
+        if row == 0:
+            edges['top'] = 'flat'  # Border pieces have flat edges
+        else:
+            # Must be opposite of the piece above
+            above_seed = ((row - 1) * total_cols + col) * 123
+            random.seed(above_seed)
+            above_bottom = random.choice(['tab', 'blank'])
+            edges['top'] = 'blank' if above_bottom == 'tab' else 'tab'
+
+        # Right edge
+        if col == total_cols - 1:
+            edges['right'] = 'flat'  # Border pieces have flat edges
+        else:
+            edges['right'] = random.choice(['tab', 'blank'])
+
+        # Bottom edge
+        if row == total_rows - 1:
+            edges['bottom'] = 'flat'  # Border pieces have flat edges
+        else:
+            edges['bottom'] = random.choice(['tab', 'blank'])
+
+        # Left edge
+        if col == 0:
+            edges['left'] = 'flat'  # Border pieces have flat edges
+        else:
+            # Must be opposite of the piece to the left
+            left_seed = (row * total_cols + (col - 1)) * 123
+            random.seed(left_seed)
+            left_right = random.choice(['tab', 'blank'])
+            edges['left'] = 'blank' if left_right == 'tab' else 'tab'
+
+        return edges
 
     def _calculate_piece_difficulty(self, mask: np.ndarray, width: int, height: int) -> str:
         """Calculate difficulty level for a puzzle piece"""
