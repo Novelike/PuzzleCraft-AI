@@ -99,7 +99,7 @@ async def segment_objects(
     if segmentation_processor is None:
         raise HTTPException(status_code=503, detail="Segmentation model not loaded")
 
-    if not file.content_type.startswith('image/'):
+    if not file.content_type or not file.content_type.startswith('image/'):
         raise HTTPException(status_code=400, detail="File must be an image")
 
     if not 0.1 <= confidence_threshold <= 1.0:
@@ -132,7 +132,7 @@ async def create_puzzle_pieces(
     if segmentation_processor is None:
         raise HTTPException(status_code=503, detail="Segmentation model not loaded")
 
-    if not file.content_type.startswith('image/'):
+    if not file.content_type or not file.content_type.startswith('image/'):
         raise HTTPException(status_code=400, detail="File must be an image")
 
     if not 5 <= piece_count <= 200:
@@ -166,7 +166,7 @@ async def segment_and_create_puzzle(
     if segmentation_processor is None:
         raise HTTPException(status_code=503, detail="Segmentation model not loaded")
 
-    if not file.content_type.startswith('image/'):
+    if not file.content_type or not file.content_type.startswith('image/'):
         raise HTTPException(status_code=400, detail="File must be an image")
 
     if not 5 <= piece_count <= 200:
@@ -252,7 +252,7 @@ async def analyze_image_complexity(file: UploadFile = File(...)):
     if segmentation_processor is None:
         raise HTTPException(status_code=503, detail="Segmentation model not loaded")
 
-    if not file.content_type.startswith('image/'):
+    if not file.content_type or not file.content_type.startswith('image/'):
         raise HTTPException(status_code=400, detail="File must be an image")
 
     try:
