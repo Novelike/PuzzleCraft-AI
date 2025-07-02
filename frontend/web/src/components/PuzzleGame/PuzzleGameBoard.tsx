@@ -12,30 +12,7 @@ import {
   Target,
   Zap
 } from 'lucide-react'
-
-interface PuzzlePiece {
-  id: string
-  x: number
-  y: number
-  width: number
-  height: number
-  rotation: number
-  imageData: string
-  correctPosition: { x: number, y: number }
-  currentPosition: { x: number, y: number }
-  isPlaced: boolean
-  isSelected: boolean
-  zIndex: number
-  connectedPieces: string[]
-  edges: {
-    top: 'flat' | 'knob' | 'hole'
-    right: 'flat' | 'knob' | 'hole'
-    bottom: 'flat' | 'knob' | 'hole'
-    left: 'flat' | 'knob' | 'hole'
-  }
-  difficulty: 'easy' | 'medium' | 'hard'
-  region: 'subject' | 'background'
-}
+import { PuzzlePiece } from '../../types/puzzle'
 
 interface GameState {
   pieces: PuzzlePiece[]

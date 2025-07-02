@@ -1,57 +1,12 @@
 import { useState, useCallback, useRef, useEffect } from 'react'
-
-interface PuzzlePiece {
-  id: string
-  x: number
-  y: number
-  width: number
-  height: number
-  rotation: number
-  imageData: string
-  correctPosition: { x: number, y: number }
-  currentPosition: { x: number, y: number }
-  isPlaced: boolean
-  isSelected: boolean
-  edges: {
-    top: 'flat' | 'knob' | 'hole'
-    right: 'flat' | 'knob' | 'hole'
-    bottom: 'flat' | 'knob' | 'hole'
-    left: 'flat' | 'knob' | 'hole'
-  }
-  difficulty: 'easy' | 'medium' | 'hard'
-  region: 'subject' | 'background'
-}
-
-interface PuzzleData {
-  pieces: PuzzlePiece[]
-  imageUrl: string
-  difficulty: string
-  estimatedSolveTime: number
-  metadata?: {
-    originalImageUrl?: string
-    styleType?: string
-    pieceCount: number
-    createdAt: string
-  }
-}
-
-interface GameStats {
-  completionTime: number
-  hintsUsed: number
-  score: number
-  difficulty: string
-  piecesMoved: number
-  piecesRotated: number
-}
-
-interface SaveData {
-  puzzleId: string
-  pieces: PuzzlePiece[]
-  gameTime: number
-  hintsUsed: number
-  score: number
-  lastSaved: string
-}
+import { 
+  PuzzlePiece, 
+  PuzzleData, 
+  GameStats, 
+  SaveData, 
+  BasePuzzleData, 
+  enhancePuzzleData 
+} from '../types/puzzle'
 
 interface UsePuzzleGameOptions {
   puzzleId: string
@@ -144,10 +99,9 @@ export const usePuzzleGame = (options: UsePuzzleGameOptions) => {
         console.warn(`⚠️ ${invalidPieces.length}개의 피스에 이미지 데이터가 없습니다`)
       }
 
-      // 퍼즐 데이터 변환
-      const puzzleData: PuzzleData = {
+      // 퍼즐 데이터 변환 - 먼저 BasePuzzleData 형태로 변환
+      const basePuzzleData: BasePuzzleData = {
         pieces: data.pieces.map((piece: any, index: number) => ({
-          ...piece,
           id: piece.id || `piece_${index}`,
           x: piece.x || 0,
           y: piece.y || 0,
@@ -165,8 +119,6 @@ export const usePuzzleGame = (options: UsePuzzleGameOptions) => {
           },
           isPlaced: false,
           isSelected: false,
-          zIndex: index,
-          connectedPieces: [],
           edges: piece.edges || {
             top: 'flat',
             right: 'flat',
@@ -186,6 +138,9 @@ export const usePuzzleGame = (options: UsePuzzleGameOptions) => {
           createdAt: data.created_at || new Date().toISOString()
         }
       }
+
+      // BasePuzzleData를 enhanced PuzzleData로 변환
+      const puzzleData: PuzzleData = enhancePuzzleData(basePuzzleData)
 
       setPuzzleData(puzzleData)
       setIsGameActive(true)
