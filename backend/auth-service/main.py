@@ -49,7 +49,9 @@ class User(Base):
     username = Column(String, unique=True, index=True, nullable=False)
     email = Column(String, unique=True, index=True, nullable=False)
     password_hash = Column(String, nullable=False)
-    is_active = Column(Boolean, default=True)
+    profile_image_url = Column(String, nullable=True)
+    level = Column(Integer, default=1)
+    total_points = Column(Integer, default=0)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -74,7 +76,9 @@ class UserResponse(BaseModel):
     id: str
     username: str
     email: str
-    is_active: bool
+    profile_image_url: Optional[str]
+    level: int
+    total_points: int
     created_at: datetime
 
     class Config:

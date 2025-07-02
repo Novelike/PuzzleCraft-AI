@@ -29,10 +29,13 @@ class Token(BaseModel):
 	token_type: str
 
 class UserResponse(BaseModel):
-	id: int
+	id: str
 	username: str
 	email: str
-	is_active: bool
+	profile_image_url: Optional[str]
+	level: int
+	total_points: int
+	created_at: str
 
 @router.post("/login", response_model=Token)
 async def login(user_data: UserLogin):
