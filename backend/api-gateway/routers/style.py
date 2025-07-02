@@ -113,7 +113,22 @@ async def get_available_styles():
             response = await client.get(f"{STYLE_TRANSFER_URL}/available-styles")
 
             if response.status_code == 200:
-                return response.json()
+                style_data = response.json()
+                # Normalize the response format to match expected format
+                normalized_styles = []
+                for style in style_data.get('styles', []):
+                    normalized_style = {
+                        'id': style.get('name', style.get('id', '')),  # Use 'name' as 'id' if available
+                        'name': style.get('name', style.get('id', '')),
+                        'description': style.get('description', '')
+                    }
+                    normalized_styles.append(normalized_style)
+
+                return {
+                    'total_styles': style_data.get('total_styles', len(normalized_styles)),
+                    'styles': normalized_styles,
+                    'style_names': style_data.get('style_names', [s['id'] for s in normalized_styles])
+                }
             else:
                 # 서비스가 응답하지만 에러인 경우 기본 스타일 목록 반환
                 return _get_default_styles()
