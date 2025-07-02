@@ -13,7 +13,7 @@ router = APIRouter()
 security = HTTPBearer()
 
 # Auth Service URL
-AUTH_SERVICE_URL = os.getenv("AUTH_SERVICE_URL", "http://auth-service:8001")
+AUTH_SERVICE_URL = os.getenv("AUTH_SERVICE_URL", "http://auth-service")
 
 class UserLogin(BaseModel):
 	username: str
