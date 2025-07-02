@@ -1,9 +1,12 @@
 from fastapi import APIRouter, UploadFile, File, HTTPException, Form, Depends
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from fastapi.responses import StreamingResponse
 from typing import Optional
 import httpx
 import os
 import logging
+import time
+import io
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -13,6 +16,7 @@ security = HTTPBearer()
 
 # Style Transfer Service URL (올바른 포트 8007 사용)
 STYLE_TRANSFER_URL = os.getenv("STYLE_TRANSFER_URL", "http://localhost:8007")
+API_BASE_URL = os.getenv("API_BASE_URL", "https://puzzle.novelike.dev")
 
 @router.post("/preview")
 async def generate_style_preview(
@@ -22,6 +26,8 @@ async def generate_style_preview(
 ):
     """스타일 미리보기 생성"""
     logger.info(f"Generating style preview: {style_type} for file: {file.filename}")
+
+    start_time = time.time()
 
     async with httpx.AsyncClient(timeout=60.0) as client:
         try:
@@ -41,7 +47,23 @@ async def generate_style_preview(
             if response.status_code == 200:
                 result = response.json()
                 logger.info(f"Style preview successful: {result.get('success', False)}")
-                return result
+
+                # 🔧 응답 형식을 프론트엔드 기대 형식으로 변환
+                if result.get('success'):
+                    preview_filename = result.get('preview_filename')
+                    processing_time = time.time() - start_time
+
+                    # API Gateway를 통한 이미지 URL 생성
+                    preview_url = f"{API_BASE_URL}/api/v1/style/image/{preview_filename}"
+
+                    return {
+                        "preview_url": preview_url,
+                        "style_type": result.get('style_type'),
+                        "processing_time": round(processing_time, 2),
+                        "success": True
+                    }
+                else:
+                    return result
             else:
                 error_detail = response.text
                 logger.error(f"Style preview failed with status {response.status_code}: {error_detail}")
@@ -65,6 +87,27 @@ async def generate_style_preview(
                 detail=f"Internal server error: {str(e)}"
             )
 
+# 🆕 이미지 서빙을 위한 프록시 엔드포인트 추가
+@router.get("/image/{filename}")
+async def get_style_image(filename: str):
+    """스타일 변환된 이미지 서빙"""
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        try:
+            response = await client.get(f"{STYLE_TRANSFER_URL}/download/{filename}")
+
+            if response.status_code == 200:
+                return StreamingResponse(
+                    io.BytesIO(response.content),
+                    media_type="image/jpeg",
+                    headers={"Content-Disposition": f"inline; filename={filename}"}
+                )
+            else:
+                raise HTTPException(status_code=404, detail="Image not found")
+
+        except httpx.RequestError as e:
+            logger.error(f"Error fetching image from style service: {e}")
+            raise HTTPException(status_code=503, detail="Style service unavailable")
+
 @router.post("/apply")
 async def apply_style(
     file: UploadFile = File(...),
@@ -73,6 +116,8 @@ async def apply_style(
     credentials: HTTPAuthorizationCredentials = Depends(security)
 ):
     """스타일 적용"""
+    start_time = time.time()
+
     async with httpx.AsyncClient(timeout=120.0) as client:
         try:
             # 파일 내용을 읽어서 새로운 파일 객체 생성
@@ -87,7 +132,23 @@ async def apply_style(
             )
 
             if response.status_code == 200:
-                return response.json()
+                result = response.json()
+
+                # 🔧 응답 형식을 프론트엔드 기대 형식으로 변환
+                if result.get('success'):
+                    output_filename = os.path.basename(result.get('output_path', ''))
+                    processing_time = time.time() - start_time
+
+                    styled_image_url = f"{API_BASE_URL}/api/v1/style/image/{output_filename}"
+
+                    return {
+                        "styled_image_url": styled_image_url,
+                        "style_type": result.get('style_type'),
+                        "processing_time": round(processing_time, 2),
+                        "task_id": result.get('task_id')
+                    }
+                else:
+                    return result
             else:
                 raise HTTPException(
                     status_code=response.status_code,
