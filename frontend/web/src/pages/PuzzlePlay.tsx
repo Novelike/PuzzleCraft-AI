@@ -19,7 +19,7 @@ interface PuzzlePlayProps {}
 export const PuzzlePlay: React.FC<PuzzlePlayProps> = () => {
   const { puzzleId } = useParams<{ puzzleId: string }>()
   const navigate = useNavigate()
-  
+
   const [showSettings, setShowSettings] = useState(false)
   const [gameSettings, setGameSettings] = useState({
     soundEnabled: true,
@@ -245,13 +245,16 @@ export const PuzzlePlay: React.FC<PuzzlePlayProps> = () => {
               <ArrowLeft className="h-4 w-4" />
               <span>메인으로</span>
             </button>
-            
+
             <div>
               <h1 className="text-lg font-semibold text-gray-900">
                 퍼즐 게임
               </h1>
               <p className="text-sm text-gray-600">
-                {puzzleGame.puzzleData.difficulty} 난이도 • {puzzleGame.puzzleData.pieces.length}개 피스
+                {puzzleGame.puzzleData ? 
+                  `${puzzleGame.puzzleData.difficulty} 난이도 • ${puzzleGame.puzzleData.pieces.length}개 피스` : 
+                  '퍼즐 정보 로딩 중...'
+                }
               </p>
             </div>
           </div>
@@ -264,7 +267,7 @@ export const PuzzlePlay: React.FC<PuzzlePlayProps> = () => {
             >
               <RotateCcw className="h-4 w-4" />
             </button>
-            
+
             <button
               onClick={handleShareGame}
               className="btn-secondary"
@@ -272,7 +275,7 @@ export const PuzzlePlay: React.FC<PuzzlePlayProps> = () => {
             >
               <Share2 className="h-4 w-4" />
             </button>
-            
+
             <button
               onClick={handleDownloadPuzzle}
               className="btn-secondary"
@@ -280,7 +283,7 @@ export const PuzzlePlay: React.FC<PuzzlePlayProps> = () => {
             >
               <Download className="h-4 w-4" />
             </button>
-            
+
             <button
               onClick={() => setShowSettings(true)}
               className="btn-secondary"
@@ -305,52 +308,54 @@ export const PuzzlePlay: React.FC<PuzzlePlayProps> = () => {
           />
         </div>
 
-        {/* 사이드바 (선택사항) */}
-        <div className="w-80 bg-white border-l border-gray-200 p-4 hidden lg:block">
-          <div className="space-y-6">
-            {/* 퍼즐 정보 */}
-            <div>
-              <h3 className="text-lg font-semibold text-gray-900 mb-3">퍼즐 정보</h3>
-              <div className="space-y-2 text-sm">
-                <div className="flex justify-between">
-                  <span className="text-gray-600">난이도:</span>
-                  <span className="font-medium capitalize">{puzzleGame.puzzleData.difficulty}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-600">총 피스:</span>
-                  <span className="font-medium">{puzzleGame.puzzleData.pieces.length}개</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-600">예상 시간:</span>
-                  <span className="font-medium">{puzzleGame.puzzleData.estimatedSolveTime}분</span>
+        {/* 사이드바 (선택사항) - 조건부 렌더링 추가 */}
+        {puzzleGame.puzzleData && (
+          <div className="w-80 bg-white border-l border-gray-200 p-4 hidden lg:block">
+            <div className="space-y-6">
+              {/* 퍼즐 정보 */}
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900 mb-3">퍼즐 정보</h3>
+                <div className="space-y-2 text-sm">
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">난이도:</span>
+                    <span className="font-medium capitalize">{puzzleGame.puzzleData.difficulty}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">총 피스:</span>
+                    <span className="font-medium">{puzzleGame.puzzleData.pieces.length}개</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">예상 시간:</span>
+                    <span className="font-medium">{puzzleGame.puzzleData.estimatedSolveTime}분</span>
+                  </div>
                 </div>
               </div>
-            </div>
 
-            {/* 원본 이미지 미리보기 */}
-            <div>
-              <h3 className="text-lg font-semibold text-gray-900 mb-3">원본 이미지</h3>
-              <div className="aspect-square bg-gray-100 rounded-lg overflow-hidden">
-                <img
-                  src={puzzleGame.puzzleData.imageUrl}
-                  alt="퍼즐 원본"
-                  className="w-full h-full object-cover"
-                />
+              {/* 원본 이미지 미리보기 */}
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900 mb-3">원본 이미지</h3>
+                <div className="aspect-square bg-gray-100 rounded-lg overflow-hidden">
+                  <img
+                    src={puzzleGame.puzzleData.imageUrl}
+                    alt="퍼즐 원본"
+                    className="w-full h-full object-cover"
+                  />
+                </div>
               </div>
-            </div>
 
-            {/* 게임 팁 */}
-            <div>
-              <h3 className="text-lg font-semibold text-gray-900 mb-3">게임 팁</h3>
-              <div className="space-y-2 text-sm text-gray-600">
-                <p>• 모서리와 가장자리 피스부터 맞춰보세요</p>
-                <p>• 색상과 패턴이 비슷한 피스들을 그룹화하세요</p>
-                <p>• 힌트 기능을 적절히 활용하세요</p>
-                <p>• 피스를 회전시켜 올바른 방향을 찾으세요</p>
+              {/* 게임 팁 */}
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900 mb-3">게임 팁</h3>
+                <div className="space-y-2 text-sm text-gray-600">
+                  <p>• 모서리와 가장자리 피스부터 맞춰보세요</p>
+                  <p>• 색상과 패턴이 비슷한 피스들을 그룹화하세요</p>
+                  <p>• 힌트 기능을 적절히 활용하세요</p>
+                  <p>• 피스를 회전시켜 올바른 방향을 찾으세요</p>
+                </div>
               </div>
             </div>
           </div>
-        </div>
+        )}
       </div>
 
       {/* 설정 모달 */}
@@ -358,7 +363,7 @@ export const PuzzlePlay: React.FC<PuzzlePlayProps> = () => {
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
             <h3 className="text-lg font-semibold text-gray-900 mb-4">게임 설정</h3>
-            
+
             <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <label className="text-sm font-medium text-gray-700">사운드 효과</label>
@@ -372,7 +377,7 @@ export const PuzzlePlay: React.FC<PuzzlePlayProps> = () => {
                   className="rounded border-gray-300"
                 />
               </div>
-              
+
               <div className="flex items-center justify-between">
                 <label className="text-sm font-medium text-gray-700">타이머 표시</label>
                 <input
@@ -385,7 +390,7 @@ export const PuzzlePlay: React.FC<PuzzlePlayProps> = () => {
                   className="rounded border-gray-300"
                 />
               </div>
-              
+
               <div className="flex items-center justify-between">
                 <label className="text-sm font-medium text-gray-700">자동 저장</label>
                 <input
@@ -399,7 +404,7 @@ export const PuzzlePlay: React.FC<PuzzlePlayProps> = () => {
                 />
               </div>
             </div>
-            
+
             <div className="flex space-x-3 mt-6">
               <button
                 onClick={() => setShowSettings(false)}

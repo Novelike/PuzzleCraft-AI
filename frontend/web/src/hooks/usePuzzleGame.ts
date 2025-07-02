@@ -102,26 +102,58 @@ export const usePuzzleGame = (options: UsePuzzleGameOptions) => {
     try {
       // 퍼즐 데이터 API 호출
       const response = await fetch(`/api/v1/puzzles/${puzzleId}`)
-      
+
       if (!response.ok) {
         throw new Error(`퍼즐을 찾을 수 없습니다 (${response.status})`)
       }
 
       const data = await response.json()
-      
+
+      // 데이터 유효성 검사
+      if (!data.pieces || !Array.isArray(data.pieces) || data.pieces.length === 0) {
+        throw new Error('유효하지 않은 퍼즐 데이터입니다: pieces 배열이 없거나 비어있습니다')
+      }
+
+      // 각 피스의 필수 데이터 검증
+      const invalidPieces = data.pieces.filter((piece: any, index: number) => {
+        return !piece.imageData || typeof piece.imageData !== 'string' || piece.imageData.trim() === ''
+      })
+
+      if (invalidPieces.length > 0) {
+        console.warn(`⚠️ ${invalidPieces.length}개의 피스에 이미지 데이터가 없습니다`)
+      }
+
       // 퍼즐 데이터 변환
       const puzzleData: PuzzleData = {
         pieces: data.pieces.map((piece: any, index: number) => ({
           ...piece,
+          id: piece.id || `piece_${index}`,
+          x: piece.x || 0,
+          y: piece.y || 0,
+          width: piece.width || piece.piece_width || 100,
+          height: piece.height || piece.piece_height || 100,
+          rotation: piece.rotation || 0,
+          imageData: piece.imageData || piece.image_data || '',
+          correctPosition: {
+            x: piece.correct_x || piece.correctPosition?.x || piece.x || 0,
+            y: piece.correct_y || piece.correctPosition?.y || piece.y || 0
+          },
           currentPosition: {
             x: Math.random() * 400,
             y: Math.random() * 300
           },
           isPlaced: false,
           isSelected: false,
-          rotation: 0
+          edges: piece.edges || {
+            top: 'flat',
+            right: 'flat',
+            bottom: 'flat',
+            left: 'flat'
+          },
+          difficulty: piece.difficulty || 'medium',
+          region: piece.region || 'background'
         })),
-        imageUrl: data.image_url || data.imageUrl,
+        imageUrl: data.image_url || data.imageUrl || '',
         difficulty: data.difficulty || 'medium',
         estimatedSolveTime: data.estimated_solve_time || data.estimatedSolveTime || 30,
         metadata: {
@@ -135,7 +167,7 @@ export const usePuzzleGame = (options: UsePuzzleGameOptions) => {
       setPuzzleData(puzzleData)
       setIsGameActive(true)
       gameStartTimeRef.current = Date.now()
-      
+
       setGameStats({
         completionTime: 0,
         hintsUsed: 0,
@@ -162,7 +194,7 @@ export const usePuzzleGame = (options: UsePuzzleGameOptions) => {
     try {
       // 기본 퍼즐 데이터 로드
       await loadPuzzle(saveData.puzzleId)
-      
+
       // 저장된 상태 복원
       if (puzzleData) {
         const restoredPieces = puzzleData.pieces.map(piece => {
@@ -246,7 +278,7 @@ export const usePuzzleGame = (options: UsePuzzleGameOptions) => {
     if (!isGameActive || isCompleted) return
 
     const completionTime = Math.floor((Date.now() - gameStartTimeRef.current) / 1000)
-    
+
     const finalStats: GameStats = {
       ...gameStats,
       completionTime,
@@ -316,7 +348,7 @@ export const usePuzzleGame = (options: UsePuzzleGameOptions) => {
     if (!puzzleData || !isGameActive) return
 
     const currentTime = Math.floor((Date.now() - gameStartTimeRef.current) / 1000)
-    
+
     const saveData: SaveData = {
       puzzleId: options.puzzleId,
       pieces: puzzleData.pieces,

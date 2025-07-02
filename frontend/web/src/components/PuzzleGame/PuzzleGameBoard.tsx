@@ -54,7 +54,7 @@ interface PuzzleGameBoardProps {
     imageUrl: string
     difficulty: string
     estimatedSolveTime: number
-  }
+  } | null
   onPieceMove: (pieceId: string, position: { x: number, y: number }) => void
   onPieceRotate: (pieceId: string, rotation: number) => void
   onPuzzleComplete: (gameStats: any) => void
@@ -70,6 +70,19 @@ export const PuzzleGameBoard: React.FC<PuzzleGameBoardProps> = ({
   onGamePause,
   onGameResume
 }) => {
+  // puzzleData가 null인 경우 early return
+  if (!puzzleData) {
+    return (
+      <div className="flex-1 flex items-center justify-center bg-gray-50">
+        <div className="text-center">
+          <div className="text-6xl text-gray-400 mb-4">🧩</div>
+          <p className="text-xl text-gray-600">퍼즐 데이터를 로딩 중...</p>
+          <p className="text-sm text-gray-500 mt-2">잠시만 기다려주세요</p>
+        </div>
+      </div>
+    )
+  }
+
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const gameAreaRef = useRef<HTMLDivElement>(null)
   const imageCache = useRef<Map<string, HTMLImageElement>>(new Map())
@@ -98,6 +111,24 @@ export const PuzzleGameBoard: React.FC<PuzzleGameBoardProps> = ({
   const [showHints, setShowHints] = useState(false)
   const [gameCompleted, setGameCompleted] = useState(false)
 
+  // 컴포넌트 마운트 시 디버깅 로그
+  useEffect(() => {
+    console.log('🎮 PuzzleGameBoard 마운트됨')
+    console.log('📊 puzzleData:', puzzleData)
+    console.log('🧩 pieces 개수:', puzzleData?.pieces?.length || 0)
+
+    if (puzzleData?.pieces) {
+      const piecesWithImages = puzzleData.pieces.filter(p => p.imageData && p.imageData.trim() !== '')
+      console.log(`🖼️ 이미지 데이터가 있는 피스: ${piecesWithImages.length}/${puzzleData.pieces.length}`)
+
+      // 첫 번째 피스의 이미지 데이터 샘플 확인
+      if (piecesWithImages.length > 0) {
+        const firstPiece = piecesWithImages[0]
+        console.log('🔍 첫 번째 피스 이미지 데이터 샘플:', firstPiece.imageData.substring(0, 100) + '...')
+      }
+    }
+  }, [puzzleData])
+
   // 이미지 로딩
   useEffect(() => {
     const loadImages = async () => {
@@ -115,11 +146,14 @@ export const PuzzleGameBoard: React.FC<PuzzleGameBoardProps> = ({
             }
             img.onerror = (error) => {
               console.warn(`❌ 이미지 로드 실패: ${piece.id}`, error)
+              console.warn(`❌ 실패한 이미지 데이터 샘플:`, piece.imageData.substring(0, 100))
               resolve() // 실패해도 계속 진행
             }
             img.src = piece.imageData
           })
           loadPromises.push(loadPromise)
+        } else {
+          console.warn(`⚠️ 피스 ${piece.id}에 이미지 데이터가 없습니다`)
         }
       })
 
@@ -133,7 +167,9 @@ export const PuzzleGameBoard: React.FC<PuzzleGameBoardProps> = ({
       }
     }
 
-    loadImages()
+    if (gameState.pieces.length > 0) {
+      loadImages()
+    }
   }, [gameState.pieces])
 
   // 게임 타이머

@@ -364,12 +364,27 @@ async def get_puzzle(puzzle_id: str):
 
 def transform_puzzle_data(puzzle_result):
 	"""퍼즐 생성 결과를 프론트엔드 형식으로 변환"""
+	import logging
+	logger = logging.getLogger(__name__)
+
+	logger.info(f"🔄 퍼즐 데이터 변환 시작")
+
 	# 기본 퍼즐 데이터 추출
 	pieces = puzzle_result.get("pieces", [])
+	logger.info(f"📊 변환할 피스 개수: {len(pieces)}")
 
 	# 각 피스 데이터를 프론트엔드 형식으로 변환
 	transformed_pieces = []
+	pieces_with_images = 0
+
 	for piece in pieces:
+		# 이미지 데이터 확인
+		image_data = piece.get("imageData", piece.get("image_data", ""))
+		if image_data and image_data.strip():
+			pieces_with_images += 1
+		else:
+			logger.warning(f"⚠️ 피스 {piece.get('id', len(transformed_pieces))}에 이미지 데이터가 없습니다")
+
 		transformed_piece = {
 			"id": piece.get("id", f"piece_{len(transformed_pieces)}"),
 			"x": piece.get("x", 0),
@@ -377,7 +392,7 @@ def transform_puzzle_data(puzzle_result):
 			"width": piece.get("width", piece.get("piece_width", 100)),
 			"height": piece.get("height", piece.get("piece_height", 100)),
 			"rotation": piece.get("rotation", 0),
-			"imageData": piece.get("imageData", piece.get("image_data", "")),
+			"imageData": image_data,
 			"correctPosition": {
 				"x": piece.get("correct_x", piece.get("x", 0)),
 				"y": piece.get("correct_y", piece.get("y", 0))
@@ -398,6 +413,15 @@ def transform_puzzle_data(puzzle_result):
 			"region": piece.get("region", "background")
 		}
 		transformed_pieces.append(transformed_piece)
+
+	logger.info(f"🖼️ 이미지 데이터가 있는 피스: {pieces_with_images}/{len(pieces)}")
+
+	if pieces_with_images > 0:
+		# 첫 번째 이미지 데이터 샘플 로그
+		first_piece_with_image = next((p for p in transformed_pieces if p["imageData"]), None)
+		if first_piece_with_image:
+			sample = first_piece_with_image["imageData"][:100] if first_piece_with_image["imageData"] else "없음"
+			logger.info(f"🔍 첫 번째 피스 이미지 데이터 샘플: {sample}...")
 
 	# 메타데이터 변환
 	metadata = puzzle_result.get("metadata", {})
