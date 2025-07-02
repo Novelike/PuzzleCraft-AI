@@ -165,6 +165,8 @@ export const usePuzzleGame = (options: UsePuzzleGameOptions) => {
           },
           isPlaced: false,
           isSelected: false,
+          zIndex: index,
+          connectedPieces: [],
           edges: piece.edges || {
             top: 'flat',
             right: 'flat',

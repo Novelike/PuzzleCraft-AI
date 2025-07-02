@@ -25,6 +25,8 @@ interface PuzzlePiece {
   currentPosition: { x: number, y: number }
   isPlaced: boolean
   isSelected: boolean
+  zIndex: number
+  connectedPieces: string[]
   edges: {
     top: 'flat' | 'knob' | 'hole'
     right: 'flat' | 'knob' | 'hole'
@@ -89,11 +91,13 @@ export const PuzzleGameBoard: React.FC<PuzzleGameBoardProps> = ({
   const [imagesLoaded, setImagesLoaded] = useState(false)
 
   const [gameState, setGameState] = useState<GameState>({
-    pieces: puzzleData.pieces.map(piece => ({
+    pieces: puzzleData.pieces.map((piece, index) => ({
       ...piece,
       currentPosition: { x: Math.random() * 400, y: Math.random() * 300 },
       isPlaced: false,
-      isSelected: false
+      isSelected: false,
+      zIndex: index,
+      connectedPieces: []
     })),
     completedPieces: 0,
     totalPieces: puzzleData.pieces.length,
@@ -218,8 +222,9 @@ export const PuzzleGameBoard: React.FC<PuzzleGameBoardProps> = ({
     // 완성된 영역 표시
     drawCompletedArea(ctx)
 
-    // 퍼즐 피스들 그리기
-    gameState.pieces.forEach(piece => {
+    // 퍼즐 피스들 그리기 (zIndex 순으로 정렬)
+    const sortedPieces = [...gameState.pieces].sort((a, b) => a.zIndex - b.zIndex)
+    sortedPieces.forEach(piece => {
       drawPuzzlePiece(ctx, piece)
     })
 
@@ -266,7 +271,7 @@ export const PuzzleGameBoard: React.FC<PuzzleGameBoardProps> = ({
   }
 
   const drawPuzzlePiece = (ctx: CanvasRenderingContext2D, piece: PuzzlePiece) => {
-    const { currentPosition, width, height, rotation, isSelected, isPlaced, imageData } = piece
+    const { currentPosition, width, height, rotation, isSelected, isPlaced, imageData, edges } = piece
 
     ctx.save()
 
@@ -279,26 +284,58 @@ export const PuzzleGameBoard: React.FC<PuzzleGameBoardProps> = ({
     ctx.lineWidth = isSelected ? 3 : 1
 
     try {
+      // 실제 퍼즐 조각 모양 그리기
+      const puzzleShape = generatePuzzleShape(width, height, edges)
+
+      // 클리핑 패스 설정 (퍼즐 조각 모양으로 자르기)
+      ctx.beginPath()
+      puzzleShape.forEach((point, index) => {
+        if (index === 0) {
+          ctx.moveTo(point.x - width / 2, point.y - height / 2)
+        } else {
+          ctx.lineTo(point.x - width / 2, point.y - height / 2)
+        }
+      })
+      ctx.closePath()
+
       // 캐시된 이미지 사용
       const cachedImage = imageCache.current.get(piece.id)
 
       if (cachedImage && imagesLoaded) {
+        // 퍼즐 조각 모양으로 클리핑
+        ctx.clip()
+
         // 캐시된 이미지 그리기
         ctx.drawImage(cachedImage, -width / 2, -height / 2, width, height)
 
-        // 테두리 그리기
-        ctx.strokeRect(-width / 2, -height / 2, width, height)
+        // 클리핑 해제를 위해 새로운 패스 시작
+        ctx.restore()
+        ctx.save()
+        ctx.translate(currentPosition.x + width / 2, currentPosition.y + height / 2)
+        ctx.rotate((rotation * Math.PI) / 180)
+
+        // 퍼즐 조각 테두리 그리기
+        ctx.beginPath()
+        puzzleShape.forEach((point, index) => {
+          if (index === 0) {
+            ctx.moveTo(point.x - width / 2, point.y - height / 2)
+          } else {
+            ctx.lineTo(point.x - width / 2, point.y - height / 2)
+          }
+        })
+        ctx.closePath()
+        ctx.stroke()
 
         // 배치된 피스에 반투명 오버레이
         if (isPlaced) {
           ctx.fillStyle = 'rgba(34, 197, 94, 0.2)'
-          ctx.fillRect(-width / 2, -height / 2, width, height)
+          ctx.fill()
         }
 
         // 선택된 피스에 하이라이트
         if (isSelected) {
           ctx.fillStyle = 'rgba(59, 130, 246, 0.3)'
-          ctx.fillRect(-width / 2, -height / 2, width, height)
+          ctx.fill()
         }
       } else {
         // 이미지가 로드되지 않았거나 캐시에 없는 경우 폴백
@@ -307,7 +344,7 @@ export const PuzzleGameBoard: React.FC<PuzzleGameBoardProps> = ({
         // 로딩 인디케이터 표시
         if (!imagesLoaded) {
           ctx.fillStyle = 'rgba(0, 0, 0, 0.1)'
-          ctx.fillRect(-width / 2, -height / 2, width, height)
+          ctx.fill()
 
           ctx.fillStyle = '#6b7280'
           ctx.font = '12px Arial'
@@ -350,6 +387,125 @@ export const PuzzleGameBoard: React.FC<PuzzleGameBoardProps> = ({
     ctx.fillText(region, 0, 8)
   }
 
+  // 퍼즐 조각 모양 생성 함수
+  const generatePuzzleShape = (width: number, height: number, edges: any) => {
+    const points: { x: number, y: number }[] = []
+    const tabSize = 0.25 // 탭 크기 (조각 크기의 25%)
+    const tabDepth = 0.15 // 탭 깊이
+
+    // 시작점 (왼쪽 상단)
+    let currentX = 0
+    let currentY = 0
+
+    // 상단 가장자리
+    points.push({ x: currentX, y: currentY })
+
+    if (edges.top === 'tab' || edges.top === 'knob') {
+      // 상단에 튀어나온 탭
+      const tabStart = width * 0.3
+      const tabEnd = width * 0.7
+      const tabHeight = height * tabDepth
+
+      points.push({ x: tabStart, y: currentY })
+      points.push({ x: tabStart, y: currentY - tabHeight })
+      points.push({ x: tabEnd, y: currentY - tabHeight })
+      points.push({ x: tabEnd, y: currentY })
+    } else if (edges.top === 'blank' || edges.top === 'hole') {
+      // 상단에 들어간 홈
+      const tabStart = width * 0.3
+      const tabEnd = width * 0.7
+      const tabHeight = height * tabDepth
+
+      points.push({ x: tabStart, y: currentY })
+      points.push({ x: tabStart, y: currentY + tabHeight })
+      points.push({ x: tabEnd, y: currentY + tabHeight })
+      points.push({ x: tabEnd, y: currentY })
+    }
+
+    // 우상단 모서리
+    currentX = width
+    points.push({ x: currentX, y: currentY })
+
+    // 우측 가장자리
+    if (edges.right === 'tab' || edges.right === 'knob') {
+      // 우측에 튀어나온 탭
+      const tabStart = height * 0.3
+      const tabEnd = height * 0.7
+      const tabWidth = width * tabDepth
+
+      points.push({ x: currentX, y: tabStart })
+      points.push({ x: currentX + tabWidth, y: tabStart })
+      points.push({ x: currentX + tabWidth, y: tabEnd })
+      points.push({ x: currentX, y: tabEnd })
+    } else if (edges.right === 'blank' || edges.right === 'hole') {
+      // 우측에 들어간 홈
+      const tabStart = height * 0.3
+      const tabEnd = height * 0.7
+      const tabWidth = width * tabDepth
+
+      points.push({ x: currentX, y: tabStart })
+      points.push({ x: currentX - tabWidth, y: tabStart })
+      points.push({ x: currentX - tabWidth, y: tabEnd })
+      points.push({ x: currentX, y: tabEnd })
+    }
+
+    // 우하단 모서리
+    currentY = height
+    points.push({ x: currentX, y: currentY })
+
+    // 하단 가장자리
+    if (edges.bottom === 'tab' || edges.bottom === 'knob') {
+      // 하단에 튀어나온 탭
+      const tabStart = width * 0.7
+      const tabEnd = width * 0.3
+      const tabHeight = height * tabDepth
+
+      points.push({ x: tabStart, y: currentY })
+      points.push({ x: tabStart, y: currentY + tabHeight })
+      points.push({ x: tabEnd, y: currentY + tabHeight })
+      points.push({ x: tabEnd, y: currentY })
+    } else if (edges.bottom === 'blank' || edges.bottom === 'hole') {
+      // 하단에 들어간 홈
+      const tabStart = width * 0.7
+      const tabEnd = width * 0.3
+      const tabHeight = height * tabDepth
+
+      points.push({ x: tabStart, y: currentY })
+      points.push({ x: tabStart, y: currentY - tabHeight })
+      points.push({ x: tabEnd, y: currentY - tabHeight })
+      points.push({ x: tabEnd, y: currentY })
+    }
+
+    // 좌하단 모서리
+    currentX = 0
+    points.push({ x: currentX, y: currentY })
+
+    // 좌측 가장자리
+    if (edges.left === 'tab' || edges.left === 'knob') {
+      // 좌측에 튀어나온 탭
+      const tabStart = height * 0.7
+      const tabEnd = height * 0.3
+      const tabWidth = width * tabDepth
+
+      points.push({ x: currentX, y: tabStart })
+      points.push({ x: currentX - tabWidth, y: tabStart })
+      points.push({ x: currentX - tabWidth, y: tabEnd })
+      points.push({ x: currentX, y: tabEnd })
+    } else if (edges.left === 'blank' || edges.left === 'hole') {
+      // 좌측에 들어간 홈
+      const tabStart = height * 0.7
+      const tabEnd = height * 0.3
+      const tabWidth = width * tabDepth
+
+      points.push({ x: currentX, y: tabStart })
+      points.push({ x: currentX + tabWidth, y: tabStart })
+      points.push({ x: currentX + tabWidth, y: tabEnd })
+      points.push({ x: currentX, y: tabEnd })
+    }
+
+    return points
+  }
+
   const drawHints = (ctx: CanvasRenderingContext2D) => {
     gameState.pieces.forEach(piece => {
       if (!piece.isPlaced) {
@@ -377,6 +533,60 @@ export const PuzzleGameBoard: React.FC<PuzzleGameBoardProps> = ({
     })
   }
 
+  // 연결된 조각 그룹 찾기
+  const getConnectedGroup = (pieceId: string, pieces: PuzzlePiece[]): string[] => {
+    const visited = new Set<string>()
+    const group: string[] = []
+
+    const dfs = (currentId: string) => {
+      if (visited.has(currentId)) return
+      visited.add(currentId)
+      group.push(currentId)
+
+      const currentPiece = pieces.find(p => p.id === currentId)
+      if (currentPiece) {
+        currentPiece.connectedPieces.forEach(connectedId => {
+          if (!visited.has(connectedId)) {
+            dfs(connectedId)
+          }
+        })
+      }
+    }
+
+    dfs(pieceId)
+    return group
+  }
+
+  // 두 조각이 연결 가능한지 확인
+  const canConnect = (piece1: PuzzlePiece, piece2: PuzzlePiece): boolean => {
+    const distance = Math.sqrt(
+      Math.pow(piece1.currentPosition.x - piece2.currentPosition.x, 2) +
+      Math.pow(piece1.currentPosition.y - piece2.currentPosition.y, 2)
+    )
+
+    const connectionDistance = 25 // 연결 가능한 거리
+
+    if (distance > connectionDistance) return false
+
+    // 인접한 조각인지 확인 (그리드 위치 기준)
+    const piece1Grid = piece1.id.split('_')[1] ? parseInt(piece1.id.split('_')[1]) : 0
+    const piece2Grid = piece2.id.split('_')[1] ? parseInt(piece2.id.split('_')[1]) : 0
+
+    // 간단한 인접성 체크 (실제로는 더 정교한 로직이 필요)
+    const gridCols = Math.sqrt(gameState.totalPieces) // 대략적인 열 수
+    const piece1Row = Math.floor(piece1Grid / gridCols)
+    const piece1Col = piece1Grid % gridCols
+    const piece2Row = Math.floor(piece2Grid / gridCols)
+    const piece2Col = piece2Grid % gridCols
+
+    const isAdjacent = (
+      (Math.abs(piece1Row - piece2Row) === 1 && piece1Col === piece2Col) ||
+      (Math.abs(piece1Col - piece2Col) === 1 && piece1Row === piece2Row)
+    )
+
+    return isAdjacent
+  }
+
   // 마우스 이벤트 핸들러
   const handleMouseDown = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
     const canvas = canvasRef.current
@@ -400,14 +610,29 @@ export const PuzzleGameBoard: React.FC<PuzzleGameBoardProps> = ({
         y: y - clickedPiece.currentPosition.y
       })
 
-      // 선택된 피스를 맨 앞으로
-      setGameState(prev => ({
-        ...prev,
-        pieces: prev.pieces.map(p => ({
-          ...p,
-          isSelected: p.id === clickedPiece.id
-        }))
-      }))
+      // 선택된 피스를 맨 앞으로 이동 (zIndex 업데이트)
+      setGameState(prev => {
+        const maxZIndex = Math.max(...prev.pieces.map(p => p.zIndex))
+        const connectedGroup = getConnectedGroup(clickedPiece.id, prev.pieces)
+
+        return {
+          ...prev,
+          pieces: prev.pieces.map(p => {
+            if (connectedGroup.includes(p.id)) {
+              // 연결된 그룹 전체를 맨 앞으로
+              return {
+                ...p,
+                isSelected: p.id === clickedPiece.id,
+                zIndex: maxZIndex + 1 + connectedGroup.indexOf(p.id)
+              }
+            }
+            return {
+              ...p,
+              isSelected: false
+            }
+          })
+        }
+      })
     } else {
       setSelectedPiece(null)
       setGameState(prev => ({
@@ -424,20 +649,37 @@ export const PuzzleGameBoard: React.FC<PuzzleGameBoardProps> = ({
     if (!canvas) return
 
     const rect = canvas.getBoundingClientRect()
-    const x = e.clientX - rect.left - dragOffset.x
-    const y = e.clientY - rect.top - dragOffset.y
+    const newX = e.clientX - rect.left - dragOffset.x
+    const newY = e.clientY - rect.top - dragOffset.y
 
-    setGameState(prev => ({
-      ...prev,
-      pieces: prev.pieces.map(piece =>
-        piece.id === selectedPiece
-          ? { ...piece, currentPosition: { x, y } }
-          : piece
-      )
-    }))
+    setGameState(prev => {
+      const selectedPieceData = prev.pieces.find(p => p.id === selectedPiece)
+      if (!selectedPieceData) return prev
 
-    onPieceMove(selectedPiece, { x, y })
-  }, [selectedPiece, dragOffset, onPieceMove])
+      const connectedGroup = getConnectedGroup(selectedPiece, prev.pieces)
+      const deltaX = newX - selectedPieceData.currentPosition.x
+      const deltaY = newY - selectedPieceData.currentPosition.y
+
+      return {
+        ...prev,
+        pieces: prev.pieces.map(piece => {
+          if (connectedGroup.includes(piece.id)) {
+            // 연결된 그룹 전체를 함께 이동
+            return {
+              ...piece,
+              currentPosition: {
+                x: piece.currentPosition.x + deltaX,
+                y: piece.currentPosition.y + deltaY
+              }
+            }
+          }
+          return piece
+        })
+      }
+    })
+
+    onPieceMove(selectedPiece, { x: newX, y: newY })
+  }, [selectedPiece, dragOffset, onPieceMove, gameState.pieces])
 
   const handleMouseUp = useCallback(() => {
     if (!selectedPiece) return
@@ -445,55 +687,82 @@ export const PuzzleGameBoard: React.FC<PuzzleGameBoardProps> = ({
     const piece = gameState.pieces.find(p => p.id === selectedPiece)
     if (!piece) return
 
-    // 스냅 거리 계산
-    const snapDistance = 30
-    const distanceToCorrect = Math.sqrt(
-      Math.pow(piece.currentPosition.x - piece.correctPosition.x, 2) +
-      Math.pow(piece.currentPosition.y - piece.correctPosition.y, 2)
-    )
+    setGameState(prev => {
+      let updatedPieces = [...prev.pieces]
 
-    if (distanceToCorrect < snapDistance) {
-      // 올바른 위치에 스냅
-      setGameState(prev => {
-        const updatedPieces = prev.pieces.map(p =>
-          p.id === selectedPiece
-            ? {
-                ...p,
-                currentPosition: p.correctPosition,
-                isPlaced: true,
-                isSelected: false
-              }
-            : p
+      // 다른 조각들과의 연결 가능성 체크
+      const otherPieces = updatedPieces.filter(p => p.id !== selectedPiece && !p.isPlaced)
+      const connectablePieces = otherPieces.filter(otherPiece => canConnect(piece, otherPiece))
+
+      // 연결 가능한 조각이 있으면 연결
+      if (connectablePieces.length > 0) {
+        const targetPiece = connectablePieces[0] // 가장 가까운 조각과 연결
+
+        // 두 조각을 서로의 connectedPieces에 추가
+        updatedPieces = updatedPieces.map(p => {
+          if (p.id === selectedPiece) {
+            return {
+              ...p,
+              connectedPieces: [...new Set([...p.connectedPieces, targetPiece.id])],
+              isSelected: false
+            }
+          } else if (p.id === targetPiece.id) {
+            return {
+              ...p,
+              connectedPieces: [...new Set([...p.connectedPieces, selectedPiece])]
+            }
+          }
+          return { ...p, isSelected: false }
+        })
+
+        console.log(`🔗 조각 ${selectedPiece}와 ${targetPiece.id}가 연결되었습니다!`)
+      } else {
+        // 스냅 거리 계산 (올바른 위치에 배치)
+        const snapDistance = 30
+        const distanceToCorrect = Math.sqrt(
+          Math.pow(piece.currentPosition.x - piece.correctPosition.x, 2) +
+          Math.pow(piece.currentPosition.y - piece.correctPosition.y, 2)
         )
 
-        const newCompletedCount = updatedPieces.filter(p => p.isPlaced).length
-        const newScore = calculateScore(newCompletedCount, prev.gameTime, prev.hintsUsed)
-
-        // 퍼즐 완성 체크
-        if (newCompletedCount === prev.totalPieces) {
-          setGameCompleted(true)
-          onPuzzleComplete({
-            completionTime: prev.gameTime,
-            hintsUsed: prev.hintsUsed,
-            score: newScore,
-            difficulty: prev.difficulty
-          })
+        if (distanceToCorrect < snapDistance) {
+          // 올바른 위치에 스냅
+          updatedPieces = updatedPieces.map(p =>
+            p.id === selectedPiece
+              ? {
+                  ...p,
+                  currentPosition: p.correctPosition,
+                  isPlaced: true,
+                  isSelected: false
+                }
+              : { ...p, isSelected: false }
+          )
+        } else {
+          // 선택 해제만
+          updatedPieces = updatedPieces.map(p => ({ ...p, isSelected: false }))
         }
+      }
 
-        return {
-          ...prev,
-          pieces: updatedPieces,
-          completedPieces: newCompletedCount,
-          score: newScore
-        }
-      })
-    } else {
-      // 선택 해제
-      setGameState(prev => ({
+      const newCompletedCount = updatedPieces.filter(p => p.isPlaced).length
+      const newScore = calculateScore(newCompletedCount, prev.gameTime, prev.hintsUsed)
+
+      // 퍼즐 완성 체크
+      if (newCompletedCount === prev.totalPieces) {
+        setGameCompleted(true)
+        onPuzzleComplete({
+          completionTime: prev.gameTime,
+          hintsUsed: prev.hintsUsed,
+          score: newScore,
+          difficulty: prev.difficulty
+        })
+      }
+
+      return {
         ...prev,
-        pieces: prev.pieces.map(p => ({ ...p, isSelected: false }))
-      }))
-    }
+        pieces: updatedPieces,
+        completedPieces: newCompletedCount,
+        score: newScore
+      }
+    })
 
     setSelectedPiece(null)
   }, [selectedPiece, gameState.pieces, onPuzzleComplete])
