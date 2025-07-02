@@ -8,7 +8,7 @@ from sqlalchemy.orm import sessionmaker, Session
 from passlib.context import CryptContext
 from jose import JWTError, jwt
 from datetime import datetime, timedelta
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, field_serializer
 from typing import Optional
 import os
 import uuid
@@ -79,10 +79,22 @@ class UserResponse(BaseModel):
     profile_image_url: Optional[str]
     level: int
     total_points: int
-    created_at: datetime
+    created_at: str
 
     class Config:
         from_attributes = True
+
+    @field_serializer('id')
+    def serialize_id(self, value):
+        """Convert UUID to string"""
+        return str(value)
+
+    @field_serializer('created_at')
+    def serialize_created_at(self, value):
+        """Convert datetime to ISO string"""
+        if isinstance(value, datetime):
+            return value.isoformat()
+        return str(value)
 
 # Database dependency
 def get_db():
