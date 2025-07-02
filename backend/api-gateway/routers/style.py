@@ -7,6 +7,7 @@ import httpx
 from fastapi import APIRouter, UploadFile, File, HTTPException, Form, Depends
 from fastapi.responses import StreamingResponse
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from typing import Optional
 
 from urllib.parse import quote
 
@@ -14,7 +15,7 @@ from urllib.parse import quote
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
-security = HTTPBearer()
+security = HTTPBearer(auto_error=False)  # Make auth optional for style preview
 
 # Style Transfer Service URL (올바른 포트 8007 사용)
 STYLE_TRANSFER_URL = os.getenv("STYLE_TRANSFER_URL", "http://localhost:8007")
@@ -25,7 +26,7 @@ API_BASE_URL = os.getenv("API_BASE_URL", "https://puzzle.novelike.dev")
 async def generate_style_preview(
 		file: UploadFile = File(...),
 		style_type: str = Form(default="classic"),
-		credentials: HTTPAuthorizationCredentials = Depends(security)
+		credentials: Optional[HTTPAuthorizationCredentials] = Depends(security)
 ):
 	"""스타일 미리보기 생성"""
 	logger.info(f"Generating style preview: {style_type} for file: {file.filename}")
@@ -120,7 +121,7 @@ async def apply_style(
 		file: UploadFile = File(...),
 		style_type: str = Form(default="classic"),
 		iterations: int = Form(default=300),
-		credentials: HTTPAuthorizationCredentials = Depends(security)
+		credentials: Optional[HTTPAuthorizationCredentials] = Depends(security)
 ):
 	"""스타일 적용"""
 	start_time = time.time()
