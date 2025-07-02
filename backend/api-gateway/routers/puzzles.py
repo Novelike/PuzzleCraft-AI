@@ -368,10 +368,29 @@ def transform_puzzle_data(puzzle_result):
 	logger = logging.getLogger(__name__)
 
 	logger.info(f"🔄 퍼즐 데이터 변환 시작")
+	logger.info(f"🔍 원본 데이터 구조: {list(puzzle_result.keys()) if isinstance(puzzle_result, dict) else type(puzzle_result)}")
 
-	# 기본 퍼즐 데이터 추출
-	pieces = puzzle_result.get("pieces", [])
-	logger.info(f"📊 변환할 피스 개수: {len(pieces)}")
+	# 기본 퍼즐 데이터 추출 - 여러 가능한 경로 확인
+	pieces = []
+
+	# 1. 직접 pieces 키에서 확인
+	if "pieces" in puzzle_result:
+		pieces = puzzle_result["pieces"]
+		logger.info(f"📊 직접 pieces에서 발견: {len(pieces)}개")
+
+	# 2. puzzle_data 내부에서 확인
+	elif "puzzle_data" in puzzle_result and isinstance(puzzle_result["puzzle_data"], dict):
+		puzzle_data = puzzle_result["puzzle_data"]
+		logger.info(f"🔍 puzzle_data 내부 구조: {list(puzzle_data.keys()) if isinstance(puzzle_data, dict) else type(puzzle_data)}")
+		pieces = puzzle_data.get("pieces", [])
+		logger.info(f"📊 puzzle_data.pieces에서 발견: {len(pieces)}개")
+
+	# 3. 기타 가능한 경로들
+	else:
+		logger.warning(f"⚠️ pieces 배열을 찾을 수 없습니다. 사용 가능한 키: {list(puzzle_result.keys()) if isinstance(puzzle_result, dict) else 'Not a dict'}")
+		pieces = []
+
+	logger.info(f"📊 최종 변환할 피스 개수: {len(pieces)}")
 
 	# 각 피스 데이터를 프론트엔드 형식으로 변환
 	transformed_pieces = []
@@ -423,8 +442,28 @@ def transform_puzzle_data(puzzle_result):
 			sample = first_piece_with_image["imageData"][:100] if first_piece_with_image["imageData"] else "없음"
 			logger.info(f"🔍 첫 번째 피스 이미지 데이터 샘플: {sample}...")
 
-	# 메타데이터 변환
-	metadata = puzzle_result.get("metadata", {})
+	# 메타데이터 변환 - puzzle_data 내부에서도 확인
+	metadata = {}
+	image_url = ""
+	difficulty = "medium"
+	estimated_solve_time = 30
+
+	# puzzle_data가 있는 경우 해당 경로에서 메타데이터 추출
+	if "puzzle_data" in puzzle_result and isinstance(puzzle_result["puzzle_data"], dict):
+		puzzle_data = puzzle_result["puzzle_data"]
+		metadata = puzzle_data.get("metadata", {})
+		image_url = puzzle_data.get("image_url", puzzle_data.get("imageUrl", ""))
+		difficulty = puzzle_data.get("difficulty", "medium")
+		estimated_solve_time = puzzle_data.get("estimated_solve_time", puzzle_data.get("estimatedSolveTime", 30))
+		logger.info(f"🔍 puzzle_data에서 메타데이터 추출: image_url={bool(image_url)}, difficulty={difficulty}")
+	else:
+		# 직접 경로에서 메타데이터 추출
+		metadata = puzzle_result.get("metadata", {})
+		image_url = puzzle_result.get("image_url", puzzle_result.get("imageUrl", ""))
+		difficulty = puzzle_result.get("difficulty", "medium")
+		estimated_solve_time = puzzle_result.get("estimated_solve_time", puzzle_result.get("estimatedSolveTime", 30))
+		logger.info(f"🔍 직접 경로에서 메타데이터 추출: image_url={bool(image_url)}, difficulty={difficulty}")
+
 	transformed_metadata = {
 		"originalImageUrl": metadata.get("original_image_url", puzzle_result.get("original_image_url")),
 		"styleType": metadata.get("style_type", puzzle_result.get("style_type")),
@@ -432,13 +471,16 @@ def transform_puzzle_data(puzzle_result):
 		"createdAt": metadata.get("created_at", puzzle_result.get("created_at", datetime.now().isoformat()))
 	}
 
-	return {
+	result = {
 		"pieces": transformed_pieces,
-		"imageUrl": puzzle_result.get("image_url", puzzle_result.get("imageUrl", "")),
-		"difficulty": puzzle_result.get("difficulty", "medium"),
-		"estimatedSolveTime": puzzle_result.get("estimated_solve_time", puzzle_result.get("estimatedSolveTime", 30)),
+		"imageUrl": image_url,
+		"difficulty": difficulty,
+		"estimatedSolveTime": estimated_solve_time,
 		"metadata": transformed_metadata
 	}
+
+	logger.info(f"✅ 변환 완료: {len(transformed_pieces)}개 피스, imageUrl={bool(result['imageUrl'])}")
+	return result
 
 
 @router.get("/", response_model=List[PuzzleResponse])

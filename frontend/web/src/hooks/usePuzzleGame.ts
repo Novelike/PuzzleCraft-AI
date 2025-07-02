@@ -109,8 +109,29 @@ export const usePuzzleGame = (options: UsePuzzleGameOptions) => {
 
       const data = await response.json()
 
+      // 디버깅: 받은 데이터 구조 확인
+      console.log('🔍 API에서 받은 원본 데이터:', data)
+      console.log('🔍 데이터 타입:', typeof data)
+      console.log('🔍 데이터 키들:', Object.keys(data))
+
+      if (data.pieces) {
+        console.log('🔍 pieces 배열 길이:', data.pieces.length)
+        console.log('🔍 pieces 타입:', typeof data.pieces)
+        if (data.pieces.length > 0) {
+          console.log('🔍 첫 번째 피스 구조:', Object.keys(data.pieces[0]))
+        }
+      } else {
+        console.log('❌ pieces 배열이 없습니다')
+      }
+
       // 데이터 유효성 검사
       if (!data.pieces || !Array.isArray(data.pieces) || data.pieces.length === 0) {
+        console.error('❌ 퍼즐 데이터 유효성 검사 실패:', {
+          hasPieces: !!data.pieces,
+          isArray: Array.isArray(data.pieces),
+          length: data.pieces ? data.pieces.length : 'N/A',
+          dataKeys: Object.keys(data)
+        })
         throw new Error('유효하지 않은 퍼즐 데이터입니다: pieces 배열이 없거나 비어있습니다')
       }
 
