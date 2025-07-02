@@ -24,19 +24,19 @@ interface PuzzleGeneratorState {
   // 파일 관련
   selectedFile: File | null
   imageUrl: string | null
-  
+
   // 분석 결과
   complexityAnalysis: ComplexityAnalysisResult | null
   difficultyProfile: DifficultyProfile | null
-  
+
   // 생성 설정
   puzzleSettings: PuzzleGenerationRequest
-  
+
   // 처리 상태
   isAnalyzing: boolean
   isGenerating: boolean
   isGeneratingPreview: boolean
-  
+
   // 진행 상황
   currentTaskId: string | null
   taskStatus: PuzzleTaskStatus | null
@@ -44,11 +44,11 @@ interface PuzzleGeneratorState {
   currentStep: string
   progress: number
   estimatedTimeRemaining?: number
-  
+
   // 결과
   generationResult: PuzzleGenerationResult | null
   previewData: any
-  
+
   // 에러
   error: string | null
 }
@@ -163,7 +163,7 @@ export const usePuzzleGenerator = (options: UsePuzzleGeneratorOptions = {}) => {
       if (enableCaching) {
         const cacheKey = `complexity_${targetFile.name}_${targetFile.size}_${targetFile.lastModified}`
         const cachedResult = await aiServiceClient.getCachedResult(cacheKey)
-        
+
         if (cachedResult.success) {
           updateState({
             complexityAnalysis: cachedResult.data,
@@ -174,7 +174,7 @@ export const usePuzzleGenerator = (options: UsePuzzleGeneratorOptions = {}) => {
       }
 
       const response = await aiServiceClient.analyzeImageComplexity(targetFile)
-      
+
       if (response.success) {
         const result = response.data!
         updateState({
@@ -381,7 +381,7 @@ export const usePuzzleGenerator = (options: UsePuzzleGeneratorOptions = {}) => {
           },
           (error) => {
             handleError(error)
-            
+
             // 실패한 단계 표시
             const failedSteps = steps.map(step => {
               if (step.status === 'processing') {
@@ -466,7 +466,7 @@ export const usePuzzleGenerator = (options: UsePuzzleGeneratorOptions = {}) => {
 
       if (response.success) {
         const optimizedConfig = response.data.optimized_config
-        
+
         // 최적화된 설정 적용
         updatePuzzleSettings({
           piece_count: optimizedConfig.piece_count,
@@ -504,7 +504,7 @@ export const usePuzzleGenerator = (options: UsePuzzleGeneratorOptions = {}) => {
   // 상태 초기화
   const reset = useCallback(() => {
     cancelGeneration()
-    
+
     if (state.imageUrl) {
       URL.revokeObjectURL(state.imageUrl)
     }
@@ -538,7 +538,8 @@ export const usePuzzleGenerator = (options: UsePuzzleGeneratorOptions = {}) => {
   return {
     // 상태
     ...state,
-    
+    currentFile: state.selectedFile, // selectedFile의 별칭
+
     // 액션
     selectFile,
     analyzeComplexity,
@@ -549,7 +550,7 @@ export const usePuzzleGenerator = (options: UsePuzzleGeneratorOptions = {}) => {
     optimizeForUser,
     cancelGeneration,
     reset,
-    
+
     // 유틸리티
     isReady: !!state.selectedFile,
     canGenerate: !!state.selectedFile && !state.isGenerating,

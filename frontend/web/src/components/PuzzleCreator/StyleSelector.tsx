@@ -29,6 +29,7 @@ interface StyleSelectorProps {
   isApplyingStyle: boolean
   previewResults: Record<string, string> // styleId -> preview image URL
   originalImageUrl?: string
+  error?: string | null
 }
 
 const STYLE_OPTIONS: StyleOption[] = [
@@ -122,7 +123,8 @@ export const StyleSelector: React.FC<StyleSelectorProps> = ({
   isGeneratingPreview,
   isApplyingStyle,
   previewResults,
-  originalImageUrl
+  originalImageUrl,
+  error
 }) => {
   const [selectedCategory, setSelectedCategory] = useState<string>('all')
   const [previewingStyle, setPreviewingStyle] = useState<string | null>(null)
@@ -323,7 +325,7 @@ export const StyleSelector: React.FC<StyleSelectorProps> = ({
               <p className="text-sm text-purple-700 mb-3">
                 {STYLE_OPTIONS.find(s => s.id === selectedStyle)?.description}
               </p>
-              
+
               <div className="flex items-center space-x-4 text-xs text-purple-600">
                 <div className="flex items-center space-x-1">
                   <span>강도:</span>

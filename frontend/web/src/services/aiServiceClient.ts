@@ -51,6 +51,7 @@ interface PuzzleGenerationRequest {
   target_audience?: string
   accessibility_requirements?: string[]
   style_type?: string
+  styled_image_url?: string
   enable_ai_optimization?: boolean
   custom_settings?: Record<string, any>
 }
