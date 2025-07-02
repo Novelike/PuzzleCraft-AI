@@ -72,6 +72,9 @@ export const PuzzleGameBoard: React.FC<PuzzleGameBoardProps> = ({
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const gameAreaRef = useRef<HTMLDivElement>(null)
+  const imageCache = useRef<Map<string, HTMLImageElement>>(new Map())
+  const [imagesLoaded, setImagesLoaded] = useState(false)
+
   const [gameState, setGameState] = useState<GameState>({
     pieces: puzzleData.pieces.map(piece => ({
       ...piece,
@@ -95,6 +98,44 @@ export const PuzzleGameBoard: React.FC<PuzzleGameBoardProps> = ({
   const [showHints, setShowHints] = useState(false)
   const [gameCompleted, setGameCompleted] = useState(false)
 
+  // 이미지 로딩
+  useEffect(() => {
+    const loadImages = async () => {
+      console.log('🖼️ 퍼즐 피스 이미지 로딩 시작')
+      const loadPromises: Promise<void>[] = []
+
+      gameState.pieces.forEach(piece => {
+        if (piece.imageData && typeof piece.imageData === 'string') {
+          const loadPromise = new Promise<void>((resolve, reject) => {
+            const img = new Image()
+            img.onload = () => {
+              imageCache.current.set(piece.id, img)
+              console.log(`✅ 이미지 로드 완료: ${piece.id}`)
+              resolve()
+            }
+            img.onerror = (error) => {
+              console.warn(`❌ 이미지 로드 실패: ${piece.id}`, error)
+              resolve() // 실패해도 계속 진행
+            }
+            img.src = piece.imageData
+          })
+          loadPromises.push(loadPromise)
+        }
+      })
+
+      try {
+        await Promise.all(loadPromises)
+        console.log('🎉 모든 퍼즐 피스 이미지 로딩 완료')
+        setImagesLoaded(true)
+      } catch (error) {
+        console.error('❌ 이미지 로딩 중 오류:', error)
+        setImagesLoaded(true) // 오류가 있어도 게임 시작
+      }
+    }
+
+    loadImages()
+  }, [gameState.pieces])
+
   // 게임 타이머
   useEffect(() => {
     let interval: NodeJS.Timeout
@@ -116,7 +157,7 @@ export const PuzzleGameBoard: React.FC<PuzzleGameBoardProps> = ({
     if (canvasRef.current) {
       drawPuzzleBoard()
     }
-  }, [gameState.pieces, selectedPiece, showHints])
+  }, [gameState.pieces, selectedPiece, showHints, imagesLoaded])
 
   const drawPuzzleBoard = useCallback(() => {
     const canvas = canvasRef.current
@@ -150,12 +191,12 @@ export const PuzzleGameBoard: React.FC<PuzzleGameBoardProps> = ({
     if (showHints) {
       drawHints(ctx)
     }
-  }, [gameState.pieces, showHints])
+  }, [gameState.pieces, showHints, imagesLoaded])
 
   const drawGrid = (ctx: CanvasRenderingContext2D, width: number, height: number) => {
     ctx.strokeStyle = '#e5e7eb'
     ctx.lineWidth = 1
-    
+
     // 세로선
     for (let x = 0; x <= width; x += 50) {
       ctx.beginPath()
@@ -163,7 +204,7 @@ export const PuzzleGameBoard: React.FC<PuzzleGameBoardProps> = ({
       ctx.lineTo(x, height)
       ctx.stroke()
     }
-    
+
     // 가로선
     for (let y = 0; y <= height; y += 50) {
       ctx.beginPath()
@@ -176,7 +217,7 @@ export const PuzzleGameBoard: React.FC<PuzzleGameBoardProps> = ({
   const drawCompletedArea = (ctx: CanvasRenderingContext2D) => {
     // 완성된 퍼즐 영역을 하이라이트
     const completedPieces = gameState.pieces.filter(p => p.isPlaced)
-    
+
     completedPieces.forEach(piece => {
       ctx.fillStyle = 'rgba(34, 197, 94, 0.1)'
       ctx.fillRect(
@@ -189,32 +230,88 @@ export const PuzzleGameBoard: React.FC<PuzzleGameBoardProps> = ({
   }
 
   const drawPuzzlePiece = (ctx: CanvasRenderingContext2D, piece: PuzzlePiece) => {
-    const { currentPosition, width, height, rotation, isSelected, isPlaced } = piece
+    const { currentPosition, width, height, rotation, isSelected, isPlaced, imageData } = piece
 
     ctx.save()
-    
+
     // 피스 위치로 이동
     ctx.translate(currentPosition.x + width / 2, currentPosition.y + height / 2)
     ctx.rotate((rotation * Math.PI) / 180)
-    
-    // 피스 배경
-    ctx.fillStyle = isPlaced ? '#dcfce7' : isSelected ? '#dbeafe' : '#ffffff'
+
+    // 피스 테두리 스타일
     ctx.strokeStyle = isSelected ? '#3b82f6' : isPlaced ? '#16a34a' : '#d1d5db'
     ctx.lineWidth = isSelected ? 3 : 1
-    
-    // 피스 모양 그리기 (간단한 직사각형으로 시작)
-    ctx.fillRect(-width / 2, -height / 2, width, height)
-    ctx.strokeRect(-width / 2, -height / 2, width, height)
-    
-    // 피스 ID 표시 (디버그용)
-    if (isSelected) {
-      ctx.fillStyle = '#1f2937'
-      ctx.font = '12px Arial'
-      ctx.textAlign = 'center'
-      ctx.fillText(piece.id, 0, 0)
+
+    try {
+      // 캐시된 이미지 사용
+      const cachedImage = imageCache.current.get(piece.id)
+
+      if (cachedImage && imagesLoaded) {
+        // 캐시된 이미지 그리기
+        ctx.drawImage(cachedImage, -width / 2, -height / 2, width, height)
+
+        // 테두리 그리기
+        ctx.strokeRect(-width / 2, -height / 2, width, height)
+
+        // 배치된 피스에 반투명 오버레이
+        if (isPlaced) {
+          ctx.fillStyle = 'rgba(34, 197, 94, 0.2)'
+          ctx.fillRect(-width / 2, -height / 2, width, height)
+        }
+
+        // 선택된 피스에 하이라이트
+        if (isSelected) {
+          ctx.fillStyle = 'rgba(59, 130, 246, 0.3)'
+          ctx.fillRect(-width / 2, -height / 2, width, height)
+        }
+      } else {
+        // 이미지가 로드되지 않았거나 캐시에 없는 경우 폴백
+        drawFallbackPiece(ctx, piece, width, height)
+
+        // 로딩 인디케이터 표시
+        if (!imagesLoaded) {
+          ctx.fillStyle = 'rgba(0, 0, 0, 0.1)'
+          ctx.fillRect(-width / 2, -height / 2, width, height)
+
+          ctx.fillStyle = '#6b7280'
+          ctx.font = '12px Arial'
+          ctx.textAlign = 'center'
+          ctx.fillText('로딩중...', 0, 0)
+        }
+      }
+    } catch (error) {
+      console.warn('퍼즐 피스 이미지 렌더링 실패:', error)
+      drawFallbackPiece(ctx, piece, width, height)
     }
-    
+
     ctx.restore()
+  }
+
+  const drawFallbackPiece = (ctx: CanvasRenderingContext2D, piece: PuzzlePiece, width: number, height: number) => {
+    const { isSelected, isPlaced, region } = piece
+
+    // 폴백 배경색 (피사체/배경에 따라 다른 색상)
+    ctx.fillStyle = region === 'subject' ? '#fef3c7' : '#e0f2fe'
+    ctx.fillRect(-width / 2, -height / 2, width, height)
+
+    // 상태에 따른 오버레이
+    if (isPlaced) {
+      ctx.fillStyle = 'rgba(34, 197, 94, 0.3)'
+      ctx.fillRect(-width / 2, -height / 2, width, height)
+    } else if (isSelected) {
+      ctx.fillStyle = 'rgba(59, 130, 246, 0.3)'
+      ctx.fillRect(-width / 2, -height / 2, width, height)
+    }
+
+    // 테두리
+    ctx.strokeRect(-width / 2, -height / 2, width, height)
+
+    // 피스 정보 표시 (디버그용)
+    ctx.fillStyle = '#374151'
+    ctx.font = '10px Arial'
+    ctx.textAlign = 'center'
+    ctx.fillText(piece.id.slice(-3), 0, -5)
+    ctx.fillText(region, 0, 8)
   }
 
   const drawHints = (ctx: CanvasRenderingContext2D) => {
@@ -225,7 +322,7 @@ export const PuzzleGameBoard: React.FC<PuzzleGameBoardProps> = ({
         ctx.strokeStyle = '#3b82f6'
         ctx.lineWidth = 2
         ctx.setLineDash([5, 5])
-        
+
         ctx.fillRect(
           piece.correctPosition.x,
           piece.correctPosition.y,
@@ -238,7 +335,7 @@ export const PuzzleGameBoard: React.FC<PuzzleGameBoardProps> = ({
           piece.width,
           piece.height
         )
-        
+
         ctx.setLineDash([])
       }
     })
@@ -266,7 +363,7 @@ export const PuzzleGameBoard: React.FC<PuzzleGameBoardProps> = ({
         x: x - clickedPiece.currentPosition.x,
         y: y - clickedPiece.currentPosition.y
       })
-      
+
       // 선택된 피스를 맨 앞으로
       setGameState(prev => ({
         ...prev,
@@ -375,7 +472,7 @@ export const PuzzleGameBoard: React.FC<PuzzleGameBoardProps> = ({
   // 게임 컨트롤 함수들
   const handleRotatePiece = () => {
     if (!selectedPiece) return
-    
+
     setGameState(prev => ({
       ...prev,
       pieces: prev.pieces.map(piece =>
@@ -384,7 +481,7 @@ export const PuzzleGameBoard: React.FC<PuzzleGameBoardProps> = ({
           : piece
       )
     }))
-    
+
     const piece = gameState.pieces.find(p => p.id === selectedPiece)
     if (piece) {
       onPieceRotate(selectedPiece, (piece.rotation + 90) % 360)
@@ -415,7 +512,7 @@ export const PuzzleGameBoard: React.FC<PuzzleGameBoardProps> = ({
         ...prev,
         hintsUsed: prev.hintsUsed + 1
       }))
-      
+
       // 3초 후 힌트 숨기기
       setTimeout(() => setShowHints(false), 3000)
     }
@@ -450,12 +547,12 @@ export const PuzzleGameBoard: React.FC<PuzzleGameBoardProps> = ({
                 {gameState.completedPieces}/{gameState.totalPieces} 완성
               </span>
             </div>
-            
+
             <div className="flex items-center space-x-2">
               <Clock className="h-5 w-5 text-green-600" />
               <span className="text-sm font-medium">{formatTime(gameState.gameTime)}</span>
             </div>
-            
+
             <div className="flex items-center space-x-2">
               <Trophy className="h-5 w-5 text-yellow-600" />
               <span className="text-sm font-medium">{gameState.score}점</span>
@@ -472,7 +569,7 @@ export const PuzzleGameBoard: React.FC<PuzzleGameBoardProps> = ({
             >
               <RotateCcw className="h-4 w-4" />
             </button>
-            
+
             <button
               onClick={handleShufflePieces}
               className="btn-secondary"
@@ -480,7 +577,7 @@ export const PuzzleGameBoard: React.FC<PuzzleGameBoardProps> = ({
             >
               <Shuffle className="h-4 w-4" />
             </button>
-            
+
             <button
               onClick={handleShowHints}
               disabled={gameState.hintsUsed >= gameState.maxHints}
@@ -489,7 +586,7 @@ export const PuzzleGameBoard: React.FC<PuzzleGameBoardProps> = ({
             >
               <Lightbulb className="h-4 w-4" />
             </button>
-            
+
             <button
               onClick={handlePauseResume}
               className="btn-primary"
@@ -516,7 +613,7 @@ export const PuzzleGameBoard: React.FC<PuzzleGameBoardProps> = ({
           onMouseMove={handleMouseMove}
           onMouseUp={handleMouseUp}
         />
-        
+
         {/* 일시정지 오버레이 */}
         {gameState.isPaused && (
           <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center">
@@ -539,7 +636,7 @@ export const PuzzleGameBoard: React.FC<PuzzleGameBoardProps> = ({
               <Trophy className="h-16 w-16 text-yellow-500 mx-auto mb-4" />
               <h3 className="text-2xl font-bold text-gray-900 mb-2">축하합니다!</h3>
               <p className="text-gray-600 mb-4">퍼즐을 완성했습니다!</p>
-              
+
               <div className="bg-gray-50 rounded-lg p-4 mb-6">
                 <div className="grid grid-cols-2 gap-4 text-sm">
                   <div>
@@ -560,7 +657,7 @@ export const PuzzleGameBoard: React.FC<PuzzleGameBoardProps> = ({
                   </div>
                 </div>
               </div>
-              
+
               <div className="flex space-x-3">
                 <button 
                   onClick={() => window.location.reload()} 
