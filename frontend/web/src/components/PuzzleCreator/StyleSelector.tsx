@@ -186,13 +186,25 @@ export const StyleSelector: React.FC<StyleSelectorProps> = ({
           </div>
         </div>
 
-        {selectedStyle && selectedStyle !== 'original' && (
+        {selectedStyle && (
           <button
-            onClick={() => onApplyStyle(selectedStyle)}
+            onClick={() => {
+              if (selectedStyle === 'original') {
+                // 원본 이미지의 경우 바로 다음 단계로 진행
+                onStyleSelect('original')
+              } else {
+                onApplyStyle(selectedStyle)
+              }
+            }}
             disabled={isApplyingStyle}
             className="btn-primary flex items-center space-x-2 disabled:opacity-50"
           >
-            {isApplyingStyle ? (
+            {selectedStyle === 'original' ? (
+              <>
+                <Eye className="h-4 w-4" />
+                <span>원본으로 진행</span>
+              </>
+            ) : isApplyingStyle ? (
               <>
                 <RefreshCw className="h-4 w-4 animate-spin" />
                 <span>적용 중...</span>

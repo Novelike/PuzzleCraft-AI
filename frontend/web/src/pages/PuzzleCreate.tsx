@@ -93,6 +93,11 @@ export const PuzzleCreate: React.FC = () => {
     puzzleGenerator.updatePuzzleSettings({
       style_type: styleId === 'original' ? undefined : styleId
     })
+
+    // 원본 이미지 선택 시 바로 preview 단계로 이동
+    if (styleId === 'original') {
+      setCurrentStep('preview')
+    }
   }, [puzzleGenerator])
 
   // 스타일 미리보기 요청
