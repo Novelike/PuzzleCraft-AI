@@ -1,3 +1,4 @@
+import httpx
 from fastapi import FastAPI, Depends, HTTPException, status, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
@@ -18,6 +19,8 @@ import asyncio
 from enum import Enum
 
 load_dotenv()
+
+AUTH_SERVICE_URL = os.getenv("AUTH_SERVICE_URL", "http://localhost:8001")
 
 # Database configuration
 DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://puzzlecraft:puzzlecraft123@10.0.0.207:5432/puzzlecraft_db")
@@ -60,7 +63,7 @@ class GameSession(Base):
 
 	id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
 	puzzle_id = Column(String, nullable=False)
-	user_id = Column(Integer, nullable=False)
+	user_id = Column(String, nullable=False)
 	game_mode = Column(String, nullable=False)
 	status = Column(String, default=GameStatus.WAITING)
 	start_time = Column(DateTime, default=datetime.utcnow)
@@ -90,7 +93,7 @@ class Leaderboard(Base):
 	__tablename__ = "leaderboard"
 
 	id = Column(Integer, primary_key=True, index=True)
-	user_id = Column(Integer, nullable=False)
+	user_id = Column(String, nullable=False)
 	username = Column(String, nullable=False)
 	puzzle_id = Column(String, nullable=False)
 	score = Column(Integer, nullable=False)
@@ -200,15 +203,19 @@ async def get_current_user_id(credentials: HTTPAuthorizationCredentials = Depend
 		headers={"WWW-Authenticate": "Bearer"},
 	)
 	try:
-		payload = jwt.decode(credentials.credentials, SECRET_KEY, algorithms=[ALGORITHM])
-		username: str = payload.get("sub")
-		if username is None:
-			raise credentials_exception
-		# In a real implementation, you would fetch the user_id from the auth service
-		# For now, we'll use a mock user_id based on username hash
-		user_id = hash(username) % 1000000
-		return user_id
-	except JWTError:
+		# 인증 서비스에서 실제 사용자 정보 가져오기
+		async with httpx.AsyncClient() as client:
+			response = await client.get(
+				f"{AUTH_SERVICE_URL}/me",
+				headers={"Authorization": f"Bearer {credentials.credentials}"},
+				timeout=10.0
+			)
+			if response.status_code == 200:
+				user_info = response.json()
+				return user_info["id"]  # ✅ 실제 UUID 문자열 반환
+			else:
+				raise credentials_exception
+	except Exception:
 		raise credentials_exception
 
 # Game Logic Functions
@@ -262,7 +269,7 @@ def validate_piece_placement(piece_id: str, x: float, y: float, rotation: float)
 @app.post("/sessions", response_model=GameSessionResponse)
 async def create_game_session(
 		session_data: GameSessionCreate,
-		user_id: int = Depends(get_current_user_id),
+		user_id: str = Depends(get_current_user_id),
 		db: Session = Depends(get_db)
 ):
 	"""Create a new game session"""
@@ -281,7 +288,7 @@ async def create_game_session(
 @app.get("/sessions/{session_id}", response_model=GameSessionResponse)
 async def get_game_session(
 		session_id: str,
-		user_id: int = Depends(get_current_user_id),
+		user_id: str = Depends(get_current_user_id),
 		db: Session = Depends(get_db)
 ):
 	"""Get game session details"""
@@ -307,7 +314,7 @@ async def get_game_session(
 async def make_move(
 		session_id: str,
 		move: GameMoveCreate,
-		user_id: int = Depends(get_current_user_id),
+		user_id: str = Depends(get_current_user_id),
 		db: Session = Depends(get_db)
 ):
 	"""Record a puzzle piece move"""
@@ -369,7 +376,7 @@ async def make_move(
 async def complete_game(
 		session_id: str,
 		completion: GameCompletion,
-		user_id: int = Depends(get_current_user_id),
+		user_id: str = Depends(get_current_user_id),
 		db: Session = Depends(get_db)
 ):
 	"""Complete a game session"""
@@ -432,7 +439,7 @@ async def get_leaderboard(
 async def list_game_sessions(
 		skip: int = 0,
 		limit: int = 10,
-		user_id: int = Depends(get_current_user_id),
+		user_id: str = Depends(get_current_user_id),
 		db: Session = Depends(get_db)
 ):
 	"""List user's game sessions"""
@@ -454,7 +461,7 @@ async def list_game_sessions(
 
 @app.get("/stats", response_model=UserStats)
 async def get_user_stats(
-		user_id: int = Depends(get_current_user_id),  # ✅ JWT에서 user_id 추출
+		user_id: str = Depends(get_current_user_id),  # ✅ JWT에서 user_id 추출
 		db: Session = Depends(get_db)
 ):
 	"""사용자 게임 통계 조회"""
