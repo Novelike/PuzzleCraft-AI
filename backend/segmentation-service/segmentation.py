@@ -462,40 +462,46 @@ class ImageSegmentation:
             mask = self._create_puzzle_shape_mask(width, height, edges)
             mask_height, mask_width = mask.shape
 
-            # Calculate tab extension
+            # Calculate tab extensions (consistent with mask calculation)
             tab_depth = 0.15
-            tab_extension = max(int(width * tab_depth), int(height * tab_depth))
+            tab_size = int(min(width, height) * tab_depth)
+
+            # Calculate extensions for each side
+            top_ext = tab_size if edges.get('top') == 'tab' else 0
+            right_ext = tab_size if edges.get('right') == 'tab' else 0
+            bottom_ext = tab_size if edges.get('bottom') == 'tab' else 0
+            left_ext = tab_size if edges.get('left') == 'tab' else 0
 
             # Create extended canvas for the image
             extended_image = np.zeros((mask_height, mask_width, 3), dtype=np.uint8)
 
-            # Place original piece image in the center of extended canvas
-            extended_image[tab_extension:tab_extension+height, tab_extension:tab_extension+width] = piece_image
+            # Place original piece image in the correct position
+            extended_image[top_ext:top_ext+height, left_ext:left_ext+width] = piece_image
 
             # For tab areas, extend the image by replicating edge pixels
             # Top tab
             if edges.get('top') == 'tab':
                 # Replicate top edge pixels upward
-                for y in range(tab_extension):
-                    extended_image[y, tab_extension:tab_extension+width] = piece_image[0, :]
+                for y in range(top_ext):
+                    extended_image[y, left_ext:left_ext+width] = piece_image[0, :]
 
             # Right tab
             if edges.get('right') == 'tab':
                 # Replicate right edge pixels rightward
-                for x in range(tab_extension + width, mask_width):
-                    extended_image[tab_extension:tab_extension+height, x] = piece_image[:, -1]
+                for x in range(left_ext + width, mask_width):
+                    extended_image[top_ext:top_ext+height, x] = piece_image[:, -1]
 
             # Bottom tab
             if edges.get('bottom') == 'tab':
                 # Replicate bottom edge pixels downward
-                for y in range(tab_extension + height, mask_height):
-                    extended_image[y, tab_extension:tab_extension+width] = piece_image[-1, :]
+                for y in range(top_ext + height, mask_height):
+                    extended_image[y, left_ext:left_ext+width] = piece_image[-1, :]
 
             # Left tab
             if edges.get('left') == 'tab':
                 # Replicate left edge pixels leftward
-                for x in range(tab_extension):
-                    extended_image[tab_extension:tab_extension+height, x] = piece_image[:, 0]
+                for x in range(left_ext):
+                    extended_image[top_ext:top_ext+height, x] = piece_image[:, 0]
 
             # Convert to PIL Image
             pil_image = Image.fromarray(extended_image)
@@ -909,41 +915,44 @@ class ImageSegmentation:
             for p in pieces:
                 p['edges'] = {'top': 'flat', 'right': 'flat', 'bottom': 'flat', 'left': 'flat'}
 
-            # 2) 인접한 조각끼리 'tab'/'blank' 할당
-            tolerance = 20  # 인접 검사 허용 오차
+            # 2) 인접한 조각끼리 'tab'/'blank' 할당 (수정된 로직)
+            tolerance = 5  # 인접 검사 허용 오차 (더 정확하게)
             for i, p in enumerate(pieces):
                 for j, q in enumerate(pieces):
                     if i >= j:  # 중복 검사 방지
                         continue
 
-                    p_bbox = p['bbox']  # [x1, y1, x2, y2]
-                    q_bbox = q['bbox']
+                    # x, y, width, height에서 bbox 정보 계산
+                    p_x1, p_y1 = p['bbox'][0], p['bbox'][1]
+                    p_x2, p_y2 = p['bbox'][2], p['bbox'][3]
+                    q_x1, q_y1 = q['bbox'][0], q['bbox'][1]
+                    q_x2, q_y2 = q['bbox'][2], q['bbox'][3]
 
                     # p가 q의 왼쪽에 있는 경우 (p의 right edge와 q의 left edge가 인접)
-                    if (abs(p_bbox[2] - q_bbox[0]) < tolerance and 
-                        abs(p_bbox[1] - q_bbox[1]) < tolerance and 
-                        abs(p_bbox[3] - q_bbox[3]) < tolerance):
+                    if (abs(p_x2 - q_x1) < tolerance and 
+                        abs(p_y1 - q_y1) < tolerance and 
+                        abs(p_y2 - q_y2) < tolerance):
                         p['edges']['right'] = 'tab'
                         q['edges']['left'] = 'blank'
 
                     # p가 q의 오른쪽에 있는 경우 (p의 left edge와 q의 right edge가 인접)
-                    elif (abs(p_bbox[0] - q_bbox[2]) < tolerance and 
-                          abs(p_bbox[1] - q_bbox[1]) < tolerance and 
-                          abs(p_bbox[3] - q_bbox[3]) < tolerance):
+                    elif (abs(p_x1 - q_x2) < tolerance and 
+                          abs(p_y1 - q_y1) < tolerance and 
+                          abs(p_y2 - q_y2) < tolerance):
                         p['edges']['left'] = 'tab'
                         q['edges']['right'] = 'blank'
 
                     # p가 q의 위쪽에 있는 경우 (p의 bottom edge와 q의 top edge가 인접)
-                    elif (abs(p_bbox[3] - q_bbox[1]) < tolerance and 
-                          abs(p_bbox[0] - q_bbox[0]) < tolerance and 
-                          abs(p_bbox[2] - q_bbox[2]) < tolerance):
+                    elif (abs(p_y2 - q_y1) < tolerance and 
+                          abs(p_x1 - q_x1) < tolerance and 
+                          abs(p_x2 - q_x2) < tolerance):
                         p['edges']['bottom'] = 'tab'
                         q['edges']['top'] = 'blank'
 
                     # p가 q의 아래쪽에 있는 경우 (p의 top edge와 q의 bottom edge가 인접)
-                    elif (abs(p_bbox[1] - q_bbox[3]) < tolerance and 
-                          abs(p_bbox[0] - q_bbox[0]) < tolerance and 
-                          abs(p_bbox[2] - q_bbox[2]) < tolerance):
+                    elif (abs(p_y1 - q_y2) < tolerance and 
+                          abs(p_x1 - q_x1) < tolerance and 
+                          abs(p_x2 - q_x2) < tolerance):
                         p['edges']['top'] = 'tab'
                         q['edges']['bottom'] = 'blank'
 
@@ -978,6 +987,11 @@ class ImageSegmentation:
                 p['imageData'] = self._generate_piece_image_data_from_array(piece_img, p['edges'])
                 p['width'] = x2 - x1
                 p['height'] = y2 - y1
+                p['x'] = x1  # JSON 형식에 맞게 x, y 속성 추가
+                p['y'] = y1
+                p['rotation'] = 0
+                p['isPlaced'] = False
+                p['isSelected'] = False
 
                 # correctPosition과 currentPosition 설정
                 p['correctPosition'] = {'x': x1, 'y': y1}
