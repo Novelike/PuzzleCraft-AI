@@ -223,7 +223,7 @@ class AIServiceClient {
       formData.append('request', JSON.stringify(request))
     }
 
-    return this.makeFormRequest('/generate-intelligent', formData)
+    return this.makeFormRequest('/generate-intelligent-puzzle', formData)
   }
 
   /**
