@@ -197,7 +197,7 @@ export const PuzzleGameBoard: React.FC<PuzzleGameBoardProps> = ({
     drawGrid(ctx, canvas.width, canvas.height)
 
     // 완성된 영역 표시
-    drawCompletedArea(ctx)
+    // drawCompletedArea(ctx) // 제거됨 - 머지 모드에서는 사용하지 않음
 
     // 퍼즐 피스들 그리기 (zIndex 순으로 정렬)
     const sortedPieces = [...gameState.pieces].sort((a, b) => a.zIndex - b.zIndex)
@@ -303,11 +303,11 @@ export const PuzzleGameBoard: React.FC<PuzzleGameBoardProps> = ({
         ctx.closePath()
         ctx.stroke()
 
-        // 배치된 피스에 반투명 오버레이
-        if (isPlaced) {
-          ctx.fillStyle = 'rgba(34, 197, 94, 0.2)'
-          ctx.fill()
-        }
+        // 배치된 피스에 반투명 오버레이 (제거됨 - 머지 모드에서는 사용하지 않음)
+        // if (isPlaced) {
+        //   ctx.fillStyle = 'rgba(34, 197, 94, 0.2)'
+        //   ctx.fill()
+        // }
 
         // 선택된 피스에 하이라이트
         if (isSelected) {
@@ -344,11 +344,12 @@ export const PuzzleGameBoard: React.FC<PuzzleGameBoardProps> = ({
     ctx.fillStyle = region === 'subject' ? '#fef3c7' : '#e0f2fe'
     ctx.fillRect(-width / 2, -height / 2, width, height)
 
-    // 상태에 따른 오버레이
-    if (isPlaced) {
-      ctx.fillStyle = 'rgba(34, 197, 94, 0.3)'
-      ctx.fillRect(-width / 2, -height / 2, width, height)
-    } else if (isSelected) {
+    // 상태에 따른 오버레이 (isPlaced 제거됨 - 머지 모드에서는 사용하지 않음)
+    // if (isPlaced) {
+    //   ctx.fillStyle = 'rgba(34, 197, 94, 0.3)'
+    //   ctx.fillRect(-width / 2, -height / 2, width, height)
+    // } else 
+    if (isSelected) {
       ctx.fillStyle = 'rgba(59, 130, 246, 0.3)'
       ctx.fillRect(-width / 2, -height / 2, width, height)
     }
@@ -628,11 +629,14 @@ export const PuzzleGameBoard: React.FC<PuzzleGameBoardProps> = ({
     const x = e.clientX - rect.left
     const y = e.clientY - rect.top
 
-    // 클릭된 피스 찾기
+    // 클릭된 피스 찾기 (회전 상태 고려)
     const clickedPiece = gameState.pieces.find(piece => {
-      const { currentPosition, width, height } = piece
-      return x >= currentPosition.x && x <= currentPosition.x + width &&
-             y >= currentPosition.y && y <= currentPosition.y + height
+      const { currentPosition, width, height, rotation } = piece
+      // 회전 상태에 따른 실제 width/height 계산
+      const w = (rotation % 180 === 0) ? width : height
+      const h = (rotation % 180 === 0) ? height : width
+      return x >= currentPosition.x && x <= currentPosition.x + w &&
+             y >= currentPosition.y && y <= currentPosition.y + h
     })
 
     if (clickedPiece && !clickedPiece.isPlaced) {
@@ -730,11 +734,19 @@ export const PuzzleGameBoard: React.FC<PuzzleGameBoardProps> = ({
       if (connectablePieces.length > 0) {
         const targetPiece = connectablePieces[0] // 가장 가까운 조각과 연결
 
-        // 두 조각을 서로의 connectedPieces에 추가
+        // 머지 위치 보정: 정확한 상대 위치로 조정
+        const dx = targetPiece.correctPosition.x - piece.correctPosition.x
+        const dy = targetPiece.correctPosition.y - piece.correctPosition.y
+
+        // 두 조각을 서로의 connectedPieces에 추가하고 위치 보정
         updatedPieces = updatedPieces.map(p => {
           if (p.id === selectedPiece) {
             return {
               ...p,
+              currentPosition: {
+                x: targetPiece.currentPosition.x - dx,
+                y: targetPiece.currentPosition.y - dy
+              },
               connectedPieces: [...new Set([...p.connectedPieces, targetPiece.id])],
               isSelected: false
             }
@@ -748,30 +760,21 @@ export const PuzzleGameBoard: React.FC<PuzzleGameBoardProps> = ({
         })
 
         console.log(`🔗 조각 ${selectedPiece}와 ${targetPiece.id}가 연결되었습니다!`)
-      } else {
-        // 스냅 거리 계산 (올바른 위치에 배치)
-        const snapDistance = 30
-        const distanceToCorrect = Math.sqrt(
-          Math.pow(piece.currentPosition.x - piece.correctPosition.x, 2) +
-          Math.pow(piece.currentPosition.y - piece.correctPosition.y, 2)
-        )
 
-        if (distanceToCorrect < snapDistance) {
-          // 올바른 위치에 스냅
-          updatedPieces = updatedPieces.map(p =>
-            p.id === selectedPiece
-              ? {
-                  ...p,
-                  currentPosition: p.correctPosition,
-                  isPlaced: true,
-                  isSelected: false
-                }
-              : { ...p, isSelected: false }
-          )
-        } else {
-          // 선택 해제만
-          updatedPieces = updatedPieces.map(p => ({ ...p, isSelected: false }))
+        // 퍼즐 완성 체크: 모든 조각이 하나의 그룹으로 연결되었는지 확인
+        const groupSize = getConnectedGroup(selectedPiece, updatedPieces).length
+        if (groupSize === prev.totalPieces) {
+          setGameCompleted(true)
+          onPuzzleComplete({
+            completionTime: prev.gameTime,
+            hintsUsed: prev.hintsUsed,
+            score: calculateScore(prev.totalPieces, prev.gameTime, prev.hintsUsed),
+            difficulty: prev.difficulty
+          })
         }
+      } else {
+        // 연결되지 않으면 그냥 드롭 (스냅 제거)
+        updatedPieces = updatedPieces.map(p => ({ ...p, isSelected: false }))
       }
 
       const newCompletedCount = updatedPieces.filter(p => p.isPlaced).length
@@ -810,14 +813,21 @@ export const PuzzleGameBoard: React.FC<PuzzleGameBoardProps> = ({
   const handleRotatePiece = () => {
     if (!selectedPiece) return
 
-    setGameState(prev => ({
-      ...prev,
-      pieces: prev.pieces.map(piece =>
-        piece.id === selectedPiece
-          ? { ...piece, rotation: (piece.rotation + 90) % 360 }
-          : piece
-      )
-    }))
+    setGameState(prev => {
+      // 연결된 그룹 전체를 함께 회전
+      const connectedGroup = getConnectedGroup(selectedPiece, prev.pieces)
+
+      return {
+        ...prev,
+        pieces: prev.pieces.map(piece => {
+          if (connectedGroup.includes(piece.id)) {
+            // 연결된 그룹의 모든 조각을 함께 회전
+            return { ...piece, rotation: (piece.rotation + 90) % 360 }
+          }
+          return piece
+        })
+      }
+    })
 
     const piece = gameState.pieces.find(p => p.id === selectedPiece)
     if (piece) {
@@ -836,7 +846,8 @@ export const PuzzleGameBoard: React.FC<PuzzleGameBoardProps> = ({
         },
         rotation: Math.floor(Math.random() * 4) * 90,
         isPlaced: false,
-        isSelected: false
+        isSelected: false,
+        connectedPieces: []  // 이전 연결 모두 리셋
       })),
       completedPieces: 0
     }))

@@ -446,6 +446,16 @@ class ImageSegmentation:
 
             # Extract piece region from original image
             piece_image = image[y1:y2, x1:x2].copy()
+
+            return self._generate_piece_image_data_from_array(piece_image, edges)
+
+        except Exception as e:
+            logger.error(f"Error generating piece image data: {e}")
+            return ""
+
+    def _generate_piece_image_data_from_array(self, piece_image: np.ndarray, edges: Dict[str, str]) -> str:
+        """Generate Base64 encoded image data for a puzzle piece from numpy array with proper shape"""
+        try:
             height, width = piece_image.shape[:2]
 
             # Create puzzle piece shape mask
@@ -893,10 +903,90 @@ class ImageSegmentation:
             # 4. 피스 난이도 최적화
             optimized_pieces = self._optimize_piece_difficulty(subject_pieces, background_pieces)
 
+            # 5. 모든 조각에 edges 할당
+            pieces = optimized_pieces
+            # 1) 모든 조각 edges 초기화
+            for p in pieces:
+                p['edges'] = {'top': 'flat', 'right': 'flat', 'bottom': 'flat', 'left': 'flat'}
+
+            # 2) 인접한 조각끼리 'tab'/'blank' 할당
+            tolerance = 20  # 인접 검사 허용 오차
+            for i, p in enumerate(pieces):
+                for j, q in enumerate(pieces):
+                    if i >= j:  # 중복 검사 방지
+                        continue
+
+                    p_bbox = p['bbox']  # [x1, y1, x2, y2]
+                    q_bbox = q['bbox']
+
+                    # p가 q의 왼쪽에 있는 경우 (p의 right edge와 q의 left edge가 인접)
+                    if (abs(p_bbox[2] - q_bbox[0]) < tolerance and 
+                        abs(p_bbox[1] - q_bbox[1]) < tolerance and 
+                        abs(p_bbox[3] - q_bbox[3]) < tolerance):
+                        p['edges']['right'] = 'tab'
+                        q['edges']['left'] = 'blank'
+
+                    # p가 q의 오른쪽에 있는 경우 (p의 left edge와 q의 right edge가 인접)
+                    elif (abs(p_bbox[0] - q_bbox[2]) < tolerance and 
+                          abs(p_bbox[1] - q_bbox[1]) < tolerance and 
+                          abs(p_bbox[3] - q_bbox[3]) < tolerance):
+                        p['edges']['left'] = 'tab'
+                        q['edges']['right'] = 'blank'
+
+                    # p가 q의 위쪽에 있는 경우 (p의 bottom edge와 q의 top edge가 인접)
+                    elif (abs(p_bbox[3] - q_bbox[1]) < tolerance and 
+                          abs(p_bbox[0] - q_bbox[0]) < tolerance and 
+                          abs(p_bbox[2] - q_bbox[2]) < tolerance):
+                        p['edges']['bottom'] = 'tab'
+                        q['edges']['top'] = 'blank'
+
+                    # p가 q의 아래쪽에 있는 경우 (p의 top edge와 q의 bottom edge가 인접)
+                    elif (abs(p_bbox[1] - q_bbox[3]) < tolerance and 
+                          abs(p_bbox[0] - q_bbox[0]) < tolerance and 
+                          abs(p_bbox[2] - q_bbox[2]) < tolerance):
+                        p['edges']['top'] = 'tab'
+                        q['edges']['bottom'] = 'blank'
+
+            # 6. 원본 이미지 로드 및 각 조각의 imageData 생성
+            original_image = cv2.imread(image_path)
+            if original_image is None:
+                raise ValueError(f"Could not load image: {image_path}")
+
+            original_image = cv2.cvtColor(original_image, cv2.COLOR_BGR2RGB)
+
+            # 마스크를 numpy 배열로 변환
+            subject_mask_np = np.array(separation_result['subject_mask'], dtype=np.uint8)
+            background_mask_np = np.array(separation_result['background_mask'], dtype=np.uint8)
+
+            for p in pieces:
+                x1, y1, x2, y2 = p['bbox']
+
+                # 조각 영역의 이미지 추출
+                piece_img = original_image[y1:y2, x1:x2].copy()
+
+                # 세그멘테이션 마스크 적용하여 피사체/배경 강조
+                if p['region'] == 'subject':
+                    # 피사체 조각: 배경 픽셀을 흰색으로 처리
+                    mask_slice = background_mask_np[y1:y2, x1:x2]
+                    piece_img[mask_slice == 1] = (255, 255, 255)  # 배경 부분을 흰색으로
+                elif p['region'] == 'background':
+                    # 배경 조각: 피사체 픽셀을 흰색으로 처리 (피사체 모양의 구멍 생성)
+                    mask_slice = subject_mask_np[y1:y2, x1:x2]
+                    piece_img[mask_slice == 1] = (255, 255, 255)  # 피사체 부분을 흰색으로
+
+                # 마스크가 적용된 이미지로 퍼즐 조각 이미지 데이터 생성
+                p['imageData'] = self._generate_piece_image_data_from_array(piece_img, p['edges'])
+                p['width'] = x2 - x1
+                p['height'] = y2 - y1
+
+                # correctPosition과 currentPosition 설정
+                p['correctPosition'] = {'x': x1, 'y': y1}
+                p['currentPosition'] = {'x': x1, 'y': y1}  # 초기에는 정답 위치에 배치
+
             return {
                 'puzzle_type': 'intelligent_subject_background',
-                'total_pieces': len(optimized_pieces),
-                'pieces': optimized_pieces,
+                'total_pieces': len(pieces),
+                'pieces': pieces,
                 'separation_info': separation_result,
                 'piece_distribution': {
                     'subject_pieces': len(subject_pieces),
