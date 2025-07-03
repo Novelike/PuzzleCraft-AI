@@ -605,11 +605,18 @@ class ImageSegmentation:
             cv2.circle(mask, (tab_center_x, tab_center_y), tab_size, 1.0, -1)
         elif edges.get('top') == 'blank':
             # Create indentation at top using ellipse (half-circle shape)
-            cv2.ellipse(mask,
-                        (base_center_x, top_ext),
-                        (tab_size, tab_size),  # 상단 홈을 반원으로
-                        angle=0, startAngle=0, endAngle=180,
-                        color=0.0, thickness=-1)
+            hole_center = (base_center_x, tab_size // 2)
+            axes = (tab_size, tab_size)
+            cv2.ellipse(
+                mask,
+                hole_center,
+                axes,
+                angle=180,
+                startAngle=0,
+                endAngle=180,
+                color=0,
+                thickness=-1
+            )
 
         # Right edge
         if edges.get('right') == 'tab':
@@ -619,11 +626,18 @@ class ImageSegmentation:
             cv2.circle(mask, (tab_center_x, tab_center_y), tab_size, 1.0, -1)
         elif edges.get('right') == 'blank':
             # Create indentation at right using ellipse (half-circle shape)
-            cv2.ellipse(mask,
-                        (left_ext + width, base_center_y),
-                        (tab_size, tab_size),  # 우측 홈을 반원으로
-                        angle=90, startAngle=0, endAngle=180,
-                        color=0.0, thickness=-1)
+            hole_center = (width - (tab_size // 2), base_center_y)
+            axes = (tab_size, tab_size)
+            cv2.ellipse(
+                mask,
+                hole_center,
+                axes,
+                angle=0,
+                startAngle=-90,
+                endAngle=90,
+                color=0,
+                thickness=-1
+            )
 
         # Bottom edge
         if edges.get('bottom') == 'tab':
@@ -633,11 +647,18 @@ class ImageSegmentation:
             cv2.circle(mask, (tab_center_x, tab_center_y), tab_size, 1.0, -1)
         elif edges.get('bottom') == 'blank':
             # Create indentation at bottom using ellipse (half-circle shape)
-            cv2.ellipse(mask,
-                        (base_center_x, top_ext + height),
-                        (tab_size, tab_size),  # 하단 홈을 반원으로
-                        angle=180, startAngle=0, endAngle=180,
-                        color=0.0, thickness=-1)
+            hole_center = (base_center_x, height - (tab_size // 2))
+            axes = (tab_size, tab_size)
+            cv2.ellipse(
+                mask,
+                hole_center,
+                axes,
+                angle=0,
+                startAngle=180,
+                endAngle=360,
+                color=0,
+                thickness=-1
+            )
 
         # Left edge
         if edges.get('left') == 'tab':
@@ -647,11 +668,18 @@ class ImageSegmentation:
             cv2.circle(mask, (tab_center_x, tab_center_y), tab_size, 1.0, -1)
         elif edges.get('left') == 'blank':
             # Create indentation at left using ellipse (half-circle shape)
-            cv2.ellipse(mask,
-                        (left_ext, base_center_y),
-                        (tab_size, tab_size),  # 좌측 홈을 반원으로
-                        angle=270, startAngle=0, endAngle=180,
-                        color=0.0, thickness=-1)
+            hole_center = (tab_size // 2, base_center_y)
+            axes = (tab_size, tab_size)
+            cv2.ellipse(
+                mask,
+                hole_center,
+                axes,
+                angle=0,
+                startAngle=90,
+                endAngle=270,
+                color=0,
+                thickness=-1
+            )
 
         return mask
 
