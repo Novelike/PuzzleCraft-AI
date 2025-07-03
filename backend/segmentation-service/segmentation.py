@@ -626,7 +626,7 @@ class ImageSegmentation:
             cv2.circle(mask, (tab_center_x, tab_center_y), tab_size, 1.0, -1)
         elif edges.get('right') == 'blank':
             # Create indentation at right using ellipse (half-circle shape)
-            hole_center = (width - (tab_size // 2), base_center_y)
+            hole_center = (left_ext + width - (tab_size // 2), base_center_y)
             axes = (tab_size, tab_size)
             cv2.ellipse(
                 mask,
@@ -647,7 +647,7 @@ class ImageSegmentation:
             cv2.circle(mask, (tab_center_x, tab_center_y), tab_size, 1.0, -1)
         elif edges.get('bottom') == 'blank':
             # Create indentation at bottom using ellipse (half-circle shape)
-            hole_center = (base_center_x, height - (tab_size // 2))
+            hole_center = (base_center_x, top_ext + height - (tab_size // 2))
             axes = (tab_size, tab_size)
             cv2.ellipse(
                 mask,
