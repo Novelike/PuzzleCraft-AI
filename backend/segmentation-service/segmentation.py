@@ -234,6 +234,17 @@ class ImageSegmentation:
         bbox = [int(x1), int(y1), int(x2), int(y2)]
         image_data = self._generate_piece_image_data(image, bbox, edges)
 
+        # Calculate tab offsets and actual dimensions
+        bbox_width = int(x2 - x1)
+        bbox_height = int(y2 - y1)
+        tab = int(min(bbox_width, bbox_height) * 0.15)
+        offsets = {
+            'left': tab if edges['left'] == 'tab' else 0,
+            'right': tab if edges['right'] == 'tab' else 0,
+            'top': tab if edges['top'] == 'tab' else 0,
+            'bottom': tab if edges['bottom'] == 'tab' else 0,
+        }
+
         return {
             'id': f"seg_{piece_id}",
             'type': 'segmented_object',
@@ -244,8 +255,9 @@ class ImageSegmentation:
             'mask_area': int(np.sum(binary_mask)),
             'difficulty': self._calculate_piece_difficulty(binary_mask, x2-x1, y2-y1),
             'edges': edges,
-            'width': int(x2 - x1),
-            'height': int(y2 - y1),
+            'width': bbox_width + offsets['left'] + offsets['right'],
+            'height': bbox_height + offsets['top'] + offsets['bottom'],
+            'edgeOffsets': offsets,
             'correctPosition': {'x': int(x1), 'y': int(y1)},
             'currentPosition': {'x': int(x1), 'y': int(y1)},
             'rotation': 0,
@@ -285,6 +297,17 @@ class ImageSegmentation:
                     bbox = [x1, y1, x2, y2]
                     image_data = self._generate_piece_image_data(image_rgb, bbox, edges)
 
+                    # Calculate tab offsets and actual dimensions
+                    bbox_width = x2 - x1
+                    bbox_height = y2 - y1
+                    tab = int(min(bbox_width, bbox_height) * 0.15)
+                    offsets = {
+                        'left': tab if edges['left'] == 'tab' else 0,
+                        'right': tab if edges['right'] == 'tab' else 0,
+                        'top': tab if edges['top'] == 'tab' else 0,
+                        'bottom': tab if edges['bottom'] == 'tab' else 0,
+                    }
+
                     pieces.append({
                         'id': f"grid_{piece_id}",
                         'type': 'grid_piece',
@@ -293,8 +316,9 @@ class ImageSegmentation:
                         'grid_position': [row, col],
                         'difficulty': 'medium',
                         'edges': edges,
-                        'width': x2 - x1,
-                        'height': y2 - y1,
+                        'width': bbox_width + offsets['left'] + offsets['right'],
+                        'height': bbox_height + offsets['top'] + offsets['bottom'],
+                        'edgeOffsets': offsets,
                         'correctPosition': {'x': x1, 'y': y1},
                         'currentPosition': {'x': x1, 'y': y1},
                         'rotation': 0,
@@ -357,6 +381,17 @@ class ImageSegmentation:
                 bbox = [x1, y1, x2, y2]
                 image_data = self._generate_piece_image_data(image, bbox, edges)
 
+                # Calculate tab offsets and actual dimensions
+                bbox_width = x2 - x1
+                bbox_height = y2 - y1
+                tab = int(min(bbox_width, bbox_height) * 0.15)
+                offsets = {
+                    'left': tab if edges['left'] == 'tab' else 0,
+                    'right': tab if edges['right'] == 'tab' else 0,
+                    'top': tab if edges['top'] == 'tab' else 0,
+                    'bottom': tab if edges['bottom'] == 'tab' else 0,
+                }
+
                 pieces.append({
                     'id': f"add_{piece_id}",
                     'type': 'additional_grid',
@@ -364,8 +399,9 @@ class ImageSegmentation:
                     'center': [(x1 + x2) // 2, (y1 + y2) // 2],
                     'difficulty': 'easy',
                     'edges': edges,
-                    'width': x2 - x1,
-                    'height': y2 - y1,
+                    'width': bbox_width + offsets['left'] + offsets['right'],
+                    'height': bbox_height + offsets['top'] + offsets['bottom'],
+                    'edgeOffsets': offsets,
                     'correctPosition': {'x': x1, 'y': y1},
                     'currentPosition': {'x': x1, 'y': y1},
                     'rotation': 0,

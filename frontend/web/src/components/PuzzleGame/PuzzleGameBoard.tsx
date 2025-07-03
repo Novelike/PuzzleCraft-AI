@@ -95,9 +95,16 @@ export const PuzzleGameBoard: React.FC<PuzzleGameBoardProps> = ({
   // 컴포넌트 마운트 시 디버깅 로그
   useEffect(() => {
     console.log('🎮 PuzzleGameBoard 마운트됨')
+  }, [])  // 컴포넌트 최초 마운트 시 한 번만
+
+  // puzzleData와 pieces 개수 로그 (마운트 시 한 번만)
+  useEffect(() => {
     console.log('📊 puzzleData:', puzzleData)
     console.log('🧩 pieces 개수:', puzzleData?.pieces?.length || 0)
+  }, [])
 
+  // puzzleData 변경 시 디버깅 로그
+  useEffect(() => {
     if (puzzleData?.pieces) {
       const piecesWithImages = puzzleData.pieces.filter(p => p.imageData && p.imageData.trim() !== '')
       console.log(`🖼️ 이미지 데이터가 있는 피스: ${piecesWithImages.length}/${puzzleData.pieces.length}`)
@@ -112,8 +119,9 @@ export const PuzzleGameBoard: React.FC<PuzzleGameBoardProps> = ({
 
   // 이미지 로딩
   useEffect(() => {
-    const loadImages = async () => {
-      console.log('🖼️ 퍼즐 피스 이미지 로딩 시작')
+    if (!imagesLoaded) {
+      // 로딩 시작
+      console.log('🖼️ [LOAD START] 퍼즐 이미지 한 번만 로딩')
       const loadPromises: Promise<void>[] = []
 
       gameState.pieces.forEach(piece => {
@@ -138,18 +146,15 @@ export const PuzzleGameBoard: React.FC<PuzzleGameBoardProps> = ({
         }
       })
 
-      try {
-        await Promise.all(loadPromises)
-        console.log('🎉 모든 퍼즐 피스 이미지 로딩 완료')
+      Promise.all(loadPromises).then(() => {
+        console.log('🎉 [LOAD COMPLETE] 모든 피스 로딩 완료')
         setImagesLoaded(true)
-      } catch (error) {
+      }).catch((error) => {
         console.error('❌ 이미지 로딩 중 오류:', error)
         setImagesLoaded(true) // 오류가 있어도 게임 시작
-      }
-    }
-
-    if (gameState.pieces.length > 0 && !imagesLoaded) {
-      loadImages()
+      })
+    } else {
+      console.log('⚠️ [SKIP] 이미 로딩된 이미지 재실행 방지')
     }
   }, [gameState.pieces, imagesLoaded])
 
