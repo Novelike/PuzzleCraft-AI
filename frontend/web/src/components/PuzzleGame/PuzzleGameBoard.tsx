@@ -148,10 +148,10 @@ export const PuzzleGameBoard: React.FC<PuzzleGameBoardProps> = ({
       }
     }
 
-    if (gameState.pieces.length > 0) {
+    if (gameState.pieces.length > 0 && !imagesLoaded) {
       loadImages()
     }
-  }, [gameState.pieces])
+  }, [gameState.pieces, imagesLoaded])
 
   // 게임 타이머
   useEffect(() => {
@@ -177,6 +177,8 @@ export const PuzzleGameBoard: React.FC<PuzzleGameBoardProps> = ({
   }, [gameState.pieces, selectedPiece, showHints, imagesLoaded])
 
   const drawPuzzleBoard = useCallback(() => {
+    console.debug(`🖌️ drawPuzzleBoard 호출 - 총 조각 수: ${gameState.pieces.length}`)
+
     const canvas = canvasRef.current
     if (!canvas) return
 
@@ -747,6 +749,7 @@ export const PuzzleGameBoard: React.FC<PuzzleGameBoardProps> = ({
     console.group(`[MOUSE UP] selected=${selectedPiece}`)
     console.log("edges:", piece.edges)
     console.log("pos:", piece.currentPosition)
+    console.log("offset:", piece.edgeOffsets)
     console.groupEnd()
 
     setGameState(prev => {

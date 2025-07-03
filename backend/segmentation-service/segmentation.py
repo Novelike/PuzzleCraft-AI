@@ -571,7 +571,7 @@ class ImageSegmentation:
             # Create indentation at top using ellipse (half-circle shape)
             cv2.ellipse(mask,
                         (base_center_x, top_ext),
-                        (tab_size, tab_size//2),  # 반원 타원
+                        (tab_size, tab_size),  # 상단 홈을 반원으로
                         angle=0, startAngle=0, endAngle=180,
                         color=0.0, thickness=-1)
 
@@ -585,7 +585,7 @@ class ImageSegmentation:
             # Create indentation at right using ellipse (half-circle shape)
             cv2.ellipse(mask,
                         (left_ext + width, base_center_y),
-                        (tab_size//2, tab_size),  # 반원 타원
+                        (tab_size, tab_size),  # 우측 홈을 반원으로
                         angle=90, startAngle=0, endAngle=180,
                         color=0.0, thickness=-1)
 
@@ -599,7 +599,7 @@ class ImageSegmentation:
             # Create indentation at bottom using ellipse (half-circle shape)
             cv2.ellipse(mask,
                         (base_center_x, top_ext + height),
-                        (tab_size, tab_size//2),  # 반원 타원
+                        (tab_size, tab_size),  # 하단 홈을 반원으로
                         angle=180, startAngle=0, endAngle=180,
                         color=0.0, thickness=-1)
 
@@ -613,7 +613,7 @@ class ImageSegmentation:
             # Create indentation at left using ellipse (half-circle shape)
             cv2.ellipse(mask,
                         (left_ext, base_center_y),
-                        (tab_size//2, tab_size),  # 반원 타원
+                        (tab_size, tab_size),  # 좌측 홈을 반원으로
                         angle=270, startAngle=0, endAngle=180,
                         color=0.0, thickness=-1)
 
@@ -1028,6 +1028,7 @@ class ImageSegmentation:
                 p['rotation'] = 0
                 p['isPlaced'] = False
                 p['isSelected'] = False
+                p['edgeOffsets'] = {'left': left_ext, 'top': top_ext, 'right': right_ext, 'bottom': bottom_ext}
 
                 print(f"[DEBUG] Piece {p['id']} size=({p['width']}×{p['height']}) ext=({left_ext},{right_ext},{top_ext},{bottom_ext})")
 
