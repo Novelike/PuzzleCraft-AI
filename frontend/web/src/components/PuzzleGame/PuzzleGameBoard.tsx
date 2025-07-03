@@ -282,8 +282,16 @@ export const PuzzleGameBoard: React.FC<PuzzleGameBoardProps> = ({
         // 퍼즐 조각 모양으로 클리핑
         ctx.clip()
 
-        // 캐시된 이미지 그리기
-        ctx.drawImage(cachedImage, -width / 2, -height / 2, width, height)
+        // backend에서 계산된 width/height, protrusion 오프셋 반영
+        const edgeOffsets = piece.edgeOffsets || { left: 0, top: 0, right: 0, bottom: 0 }
+        ctx.drawImage(
+          cachedImage,
+          -width / 2 - edgeOffsets.left,
+          -height / 2 - edgeOffsets.top,
+          width,
+          height
+        )
+        console.debug(`[DRAW] ${piece.id} @(${currentPosition.x},${currentPosition.y}) size=${width}×${height}`)
 
         // 클리핑 해제를 위해 새로운 패스 시작
         ctx.restore()
@@ -629,14 +637,27 @@ export const PuzzleGameBoard: React.FC<PuzzleGameBoardProps> = ({
     const x = e.clientX - rect.left
     const y = e.clientY - rect.top
 
-    // 클릭된 피스 찾기 (회전 상태 고려)
+    // 클릭된 피스 찾기 (Shape 기반 Path2D hit-testing)
     const clickedPiece = gameState.pieces.find(piece => {
       const { currentPosition, width, height, rotation } = piece
-      // 회전 상태에 따른 실제 width/height 계산
-      const w = (rotation % 180 === 0) ? width : height
-      const h = (rotation % 180 === 0) ? height : width
-      return x >= currentPosition.x && x <= currentPosition.x + w &&
-             y >= currentPosition.y && y <= currentPosition.y + h
+
+      // Canvas context 가져오기
+      const ctx = canvas.getContext('2d')
+      if (!ctx) return false
+
+      // 1) Path2D shape 생성 (API로부터 받은 mask 경로 사용)
+      // 현재는 shapePath가 없으므로 기본 사각형 패스 사용
+      const path = new Path2D()
+      if (piece.shapePath) {
+        // backend가 제공한 Path2D용 문자열이 있다면 사용
+        path.addPath(new Path2D(piece.shapePath))
+      } else {
+        // 폴백: 기본 사각형 패스
+        path.rect(currentPosition.x, currentPosition.y, width, height)
+      }
+
+      // 2) Canvas.isPointInPath 으로 정확히 hit-test
+      return ctx.isPointInPath(path, x, y)
     })
 
     if (clickedPiece && !clickedPiece.isPlaced) {
@@ -722,6 +743,11 @@ export const PuzzleGameBoard: React.FC<PuzzleGameBoardProps> = ({
 
     const piece = gameState.pieces.find(p => p.id === selectedPiece)
     if (!piece) return
+
+    console.group(`[MOUSE UP] selected=${selectedPiece}`)
+    console.log("edges:", piece.edges)
+    console.log("pos:", piece.currentPosition)
+    console.groupEnd()
 
     setGameState(prev => {
       let updatedPieces = [...prev.pieces]
@@ -836,6 +862,7 @@ export const PuzzleGameBoard: React.FC<PuzzleGameBoardProps> = ({
   }
 
   const handleShufflePieces = () => {
+    console.log("[SHUFFLE] resetting connectedPieces for all pieces")
     setGameState(prev => ({
       ...prev,
       pieces: prev.pieces.map(piece => ({

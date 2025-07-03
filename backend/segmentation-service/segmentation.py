@@ -568,10 +568,12 @@ class ImageSegmentation:
             tab_center_y = top_ext  # At the top edge of the base rectangle
             cv2.circle(mask, (tab_center_x, tab_center_y), tab_size, 1.0, -1)
         elif edges.get('top') == 'blank':
-            # Create indentation at top
-            blank_center_x = base_center_x
-            blank_center_y = top_ext + tab_size  # Inside the base rectangle
-            cv2.circle(mask, (blank_center_x, blank_center_y), tab_size, 0.0, -1)
+            # Create indentation at top using ellipse (half-circle shape)
+            cv2.ellipse(mask,
+                        (base_center_x, top_ext),
+                        (tab_size, tab_size//2),  # 반원 타원
+                        angle=0, startAngle=0, endAngle=180,
+                        color=0.0, thickness=-1)
 
         # Right edge
         if edges.get('right') == 'tab':
@@ -580,10 +582,12 @@ class ImageSegmentation:
             tab_center_y = base_center_y
             cv2.circle(mask, (tab_center_x, tab_center_y), tab_size, 1.0, -1)
         elif edges.get('right') == 'blank':
-            # Create indentation at right
-            blank_center_x = left_ext + width - tab_size  # Inside the base rectangle
-            blank_center_y = base_center_y
-            cv2.circle(mask, (blank_center_x, blank_center_y), tab_size, 0.0, -1)
+            # Create indentation at right using ellipse (half-circle shape)
+            cv2.ellipse(mask,
+                        (left_ext + width, base_center_y),
+                        (tab_size//2, tab_size),  # 반원 타원
+                        angle=90, startAngle=0, endAngle=180,
+                        color=0.0, thickness=-1)
 
         # Bottom edge
         if edges.get('bottom') == 'tab':
@@ -592,10 +596,12 @@ class ImageSegmentation:
             tab_center_y = top_ext + height  # At the bottom edge of the base rectangle
             cv2.circle(mask, (tab_center_x, tab_center_y), tab_size, 1.0, -1)
         elif edges.get('bottom') == 'blank':
-            # Create indentation at bottom
-            blank_center_x = base_center_x
-            blank_center_y = top_ext + height - tab_size  # Inside the base rectangle
-            cv2.circle(mask, (blank_center_x, blank_center_y), tab_size, 0.0, -1)
+            # Create indentation at bottom using ellipse (half-circle shape)
+            cv2.ellipse(mask,
+                        (base_center_x, top_ext + height),
+                        (tab_size, tab_size//2),  # 반원 타원
+                        angle=180, startAngle=0, endAngle=180,
+                        color=0.0, thickness=-1)
 
         # Left edge
         if edges.get('left') == 'tab':
@@ -604,10 +610,12 @@ class ImageSegmentation:
             tab_center_y = base_center_y
             cv2.circle(mask, (tab_center_x, tab_center_y), tab_size, 1.0, -1)
         elif edges.get('left') == 'blank':
-            # Create indentation at left
-            blank_center_x = left_ext + tab_size  # Inside the base rectangle
-            blank_center_y = base_center_y
-            cv2.circle(mask, (blank_center_x, blank_center_y), tab_size, 0.0, -1)
+            # Create indentation at left using ellipse (half-circle shape)
+            cv2.ellipse(mask,
+                        (left_ext, base_center_y),
+                        (tab_size//2, tab_size),  # 반원 타원
+                        angle=270, startAngle=0, endAngle=180,
+                        color=0.0, thickness=-1)
 
         return mask
 
@@ -915,8 +923,8 @@ class ImageSegmentation:
             for p in pieces:
                 p['edges'] = {'top': 'flat', 'right': 'flat', 'bottom': 'flat', 'left': 'flat'}
 
-            # 2) 인접한 조각끼리 'tab'/'blank' 할당 (수정된 로직)
-            tolerance = 5  # 인접 검사 허용 오차 (더 정확하게)
+            # 2) 인접한 조각끼리 'tab'/'blank' 할당 (개선된 로직 & 로깅 강화)
+            tolerance = 1  # 인접 검사 허용 오차 (±1px 허용)
             for i, p in enumerate(pieces):
                 for j, q in enumerate(pieces):
                     if i >= j:  # 중복 검사 방지
@@ -928,33 +936,49 @@ class ImageSegmentation:
                     q_x1, q_y1 = q['bbox'][0], q['bbox'][1]
                     q_x2, q_y2 = q['bbox'][2], q['bbox'][3]
 
-                    # p가 q의 왼쪽에 있는 경우 (p의 right edge와 q의 left edge가 인접)
-                    if (abs(p_x2 - q_x1) < tolerance and 
-                        abs(p_y1 - q_y1) < tolerance and 
-                        abs(p_y2 - q_y2) < tolerance):
+                    # 수평 검사 (p가 q의 왼쪽)
+                    if (abs(p_x2 - q_x1) <= 1 and abs(p_y1 - q_y1) <= 1):
                         p['edges']['right'] = 'tab'
                         q['edges']['left'] = 'blank'
-
-                    # p가 q의 오른쪽에 있는 경우 (p의 left edge와 q의 right edge가 인접)
-                    elif (abs(p_x1 - q_x2) < tolerance and 
-                          abs(p_y1 - q_y1) < tolerance and 
-                          abs(p_y2 - q_y2) < tolerance):
+                    # 수평 검사 (p가 q의 오른쪽)
+                    elif (abs(p_x1 - q_x2) <= 1 and abs(p_y1 - q_y1) <= 1):
                         p['edges']['left'] = 'tab'
                         q['edges']['right'] = 'blank'
-
-                    # p가 q의 위쪽에 있는 경우 (p의 bottom edge와 q의 top edge가 인접)
-                    elif (abs(p_y2 - q_y1) < tolerance and 
-                          abs(p_x1 - q_x1) < tolerance and 
-                          abs(p_x2 - q_x2) < tolerance):
+                    # 수직 검사 (p가 q의 위쪽)
+                    elif (abs(p_y2 - q_y1) <= 1 and abs(p_x1 - q_x1) <= 1):
                         p['edges']['bottom'] = 'tab'
                         q['edges']['top'] = 'blank'
-
-                    # p가 q의 아래쪽에 있는 경우 (p의 top edge와 q의 bottom edge가 인접)
-                    elif (abs(p_y1 - q_y2) < tolerance and 
-                          abs(p_x1 - q_x1) < tolerance and 
-                          abs(p_x2 - q_x2) < tolerance):
+                    # 수직 검사 (p가 q의 아래쪽)
+                    elif (abs(p_y1 - q_y2) <= 1 and abs(p_x1 - q_x1) <= 1):
                         p['edges']['top'] = 'tab'
                         q['edges']['bottom'] = 'blank'
+
+            # 3) 할당 결과 검증 및 경고 로깅
+            for i, p in enumerate(pieces):
+                for j, q in enumerate(pieces):
+                    if i >= j:
+                        continue
+
+                    p_x1, p_y1 = p['bbox'][0], p['bbox'][1]
+                    p_x2, p_y2 = p['bbox'][2], p['bbox'][3]
+                    q_x1, q_y1 = q['bbox'][0], q['bbox'][1]
+                    q_x2, q_y2 = q['bbox'][2], q['bbox'][3]
+
+                    # 오른쪽 이웃 검사
+                    if abs(p_x2 - q_x1) <= 1 and abs(p_y1 - q_y1) <= 1:
+                        e1, e2 = p['edges']['right'], q['edges']['left']
+                        if not ((e1 == 'tab' and e2 == 'blank') or (e1 == 'blank' and e2 == 'tab')):
+                            print(f"[WARN] Edge mismatch {p['id']}.right={e1} ≠ {q['id']}.left={e2}")
+
+                    # 아래쪽 이웃 검사
+                    if abs(p_y2 - q_y1) <= 1 and abs(p_x1 - q_x1) <= 1:
+                        e1, e2 = p['edges']['bottom'], q['edges']['top']
+                        if not ((e1 == 'tab' and e2 == 'blank') or (e1 == 'blank' and e2 == 'tab')):
+                            print(f"[WARN] Edge mismatch {p['id']}.bottom={e1} ≠ {q['id']}.top={e2}")
+
+            # 4) 디버그용 전체 엣지 로그
+            for p in pieces:
+                print(f"[DEBUG] Piece {p['id']} edges={p['edges']}")
 
             # 6. 원본 이미지 로드 및 각 조각의 imageData 생성
             original_image = cv2.imread(image_path)
@@ -985,13 +1009,27 @@ class ImageSegmentation:
 
                 # 마스크가 적용된 이미지로 퍼즐 조각 이미지 데이터 생성
                 p['imageData'] = self._generate_piece_image_data_from_array(piece_img, p['edges'])
-                p['width'] = x2 - x1
-                p['height'] = y2 - y1
+
+                # protrusion 적용한 실제 영역 크기 계산
+                bbox_width = x2 - x1
+                bbox_height = y2 - y1
+                tab_depth = 0.15
+                tab_size = int(min(bbox_width, bbox_height) * tab_depth)
+
+                left_ext = tab_size if p['edges']['left'] == 'tab' else 0
+                right_ext = tab_size if p['edges']['right'] == 'tab' else 0
+                top_ext = tab_size if p['edges']['top'] == 'tab' else 0
+                bottom_ext = tab_size if p['edges']['bottom'] == 'tab' else 0
+
+                p['width'] = bbox_width + left_ext + right_ext
+                p['height'] = bbox_height + top_ext + bottom_ext
                 p['x'] = x1  # JSON 형식에 맞게 x, y 속성 추가
                 p['y'] = y1
                 p['rotation'] = 0
                 p['isPlaced'] = False
                 p['isSelected'] = False
+
+                print(f"[DEBUG] Piece {p['id']} size=({p['width']}×{p['height']}) ext=({left_ext},{right_ext},{top_ext},{bottom_ext})")
 
                 # correctPosition과 currentPosition 설정
                 p['correctPosition'] = {'x': x1, 'y': y1}
