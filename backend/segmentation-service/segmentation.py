@@ -8,6 +8,8 @@ import logging
 from typing import Dict, List, Any, Tuple
 import os
 import json
+import base64
+import io
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -228,12 +230,16 @@ class ImageSegmentation:
         # Generate puzzle piece edges
         edges = self._generate_puzzle_edges(piece_id)
 
+        # Generate actual image data for the puzzle piece
+        bbox = [int(x1), int(y1), int(x2), int(y2)]
+        image_data = self._generate_piece_image_data(image, bbox, edges)
+
         return {
             'id': f"seg_{piece_id}",
             'type': 'segmented_object',
             'class_name': class_name,
             'confidence': float(score),
-            'bbox': [int(x1), int(y1), int(x2), int(y2)],
+            'bbox': bbox,
             'center': [center_x, center_y],
             'mask_area': int(np.sum(binary_mask)),
             'difficulty': self._calculate_piece_difficulty(binary_mask, x2-x1, y2-y1),
@@ -244,7 +250,8 @@ class ImageSegmentation:
             'currentPosition': {'x': int(x1), 'y': int(y1)},
             'rotation': 0,
             'isPlaced': False,
-            'isSelected': False
+            'isSelected': False,
+            'imageData': image_data
         }
 
     def _create_grid_based_pieces(self, image_path: str, piece_count: int) -> Dict[str, Any]:
@@ -274,10 +281,14 @@ class ImageSegmentation:
                     # Generate edges for grid piece with proper adjacency
                     edges = self._generate_grid_puzzle_edges(row, col, rows, cols)
 
+                    # Generate actual image data for the puzzle piece
+                    bbox = [x1, y1, x2, y2]
+                    image_data = self._generate_piece_image_data(image_rgb, bbox, edges)
+
                     pieces.append({
                         'id': f"grid_{piece_id}",
                         'type': 'grid_piece',
-                        'bbox': [x1, y1, x2, y2],
+                        'bbox': bbox,
                         'center': [(x1 + x2) // 2, (y1 + y2) // 2],
                         'grid_position': [row, col],
                         'difficulty': 'medium',
@@ -288,7 +299,8 @@ class ImageSegmentation:
                         'currentPosition': {'x': x1, 'y': y1},
                         'rotation': 0,
                         'isPlaced': False,
-                        'isSelected': False
+                        'isSelected': False,
+                        'imageData': image_data
                     })
                     piece_id += 1
 
@@ -341,10 +353,14 @@ class ImageSegmentation:
                 # Generate edges for additional grid piece
                 edges = self._generate_grid_puzzle_edges(row, col, rows, cols)
 
+                # Generate actual image data for the puzzle piece
+                bbox = [x1, y1, x2, y2]
+                image_data = self._generate_piece_image_data(image, bbox, edges)
+
                 pieces.append({
                     'id': f"add_{piece_id}",
                     'type': 'additional_grid',
-                    'bbox': [x1, y1, x2, y2],
+                    'bbox': bbox,
                     'center': [(x1 + x2) // 2, (y1 + y2) // 2],
                     'difficulty': 'easy',
                     'edges': edges,
@@ -354,7 +370,8 @@ class ImageSegmentation:
                     'currentPosition': {'x': x1, 'y': y1},
                     'rotation': 0,
                     'isPlaced': False,
-                    'isSelected': False
+                    'isSelected': False,
+                    'imageData': image_data
                 })
 
                 piece_id += 1
@@ -421,6 +438,203 @@ class ImageSegmentation:
             edges['left'] = 'blank' if left_right == 'tab' else 'tab'
 
         return edges
+
+    def _generate_piece_image_data(self, image: np.ndarray, bbox: List[int], edges: Dict[str, str]) -> str:
+        """Generate Base64 encoded image data for a puzzle piece with proper shape"""
+        try:
+            x1, y1, x2, y2 = bbox
+
+            # Extract piece region from original image
+            piece_image = image[y1:y2, x1:x2].copy()
+            height, width = piece_image.shape[:2]
+
+            # Create puzzle piece shape mask
+            mask = self._create_puzzle_shape_mask(width, height, edges)
+            mask_height, mask_width = mask.shape
+
+            # Calculate tab extension
+            tab_depth = 0.15
+            tab_extension = max(int(width * tab_depth), int(height * tab_depth))
+
+            # Create extended canvas for the image
+            extended_image = np.zeros((mask_height, mask_width, 3), dtype=np.uint8)
+
+            # Place original piece image in the center of extended canvas
+            extended_image[tab_extension:tab_extension+height, tab_extension:tab_extension+width] = piece_image
+
+            # For tab areas, extend the image by replicating edge pixels
+            # Top tab
+            if edges.get('top') == 'tab':
+                # Replicate top edge pixels upward
+                for y in range(tab_extension):
+                    extended_image[y, tab_extension:tab_extension+width] = piece_image[0, :]
+
+            # Right tab
+            if edges.get('right') == 'tab':
+                # Replicate right edge pixels rightward
+                for x in range(tab_extension + width, mask_width):
+                    extended_image[tab_extension:tab_extension+height, x] = piece_image[:, -1]
+
+            # Bottom tab
+            if edges.get('bottom') == 'tab':
+                # Replicate bottom edge pixels downward
+                for y in range(tab_extension + height, mask_height):
+                    extended_image[y, tab_extension:tab_extension+width] = piece_image[-1, :]
+
+            # Left tab
+            if edges.get('left') == 'tab':
+                # Replicate left edge pixels leftward
+                for x in range(tab_extension):
+                    extended_image[tab_extension:tab_extension+height, x] = piece_image[:, 0]
+
+            # Convert to PIL Image
+            pil_image = Image.fromarray(extended_image)
+
+            # Convert to RGBA for transparency support
+            pil_image = pil_image.convert('RGBA')
+
+            # Apply puzzle shape mask
+            mask_pil = Image.fromarray((mask * 255).astype(np.uint8), mode='L')
+            pil_image.putalpha(mask_pil)
+
+            # Save to bytes buffer
+            buffer = io.BytesIO()
+            pil_image.save(buffer, format='PNG')
+            buffer.seek(0)
+
+            # Encode to Base64
+            image_base64 = base64.b64encode(buffer.getvalue()).decode('utf-8')
+
+            # Return as Data URL
+            return f"data:image/png;base64,{image_base64}"
+
+        except Exception as e:
+            logger.error(f"Failed to generate piece image data: {e}")
+            # Return empty data URL as fallback
+            return "data:image/png;base64,"
+
+    def _create_puzzle_shape_mask(self, width: int, height: int, edges: Dict[str, str]) -> np.ndarray:
+        """Create a mask for puzzle piece shape based on edges information"""
+        tab_depth = 0.15  # Tab depth as fraction of piece size
+
+        # Calculate extended dimensions to accommodate tabs
+        tab_extension = max(int(width * tab_depth), int(height * tab_depth))
+        extended_width = width + (2 * tab_extension)
+        extended_height = height + (2 * tab_extension)
+
+        # Create extended mask (all transparent initially)
+        mask = np.zeros((extended_height, extended_width), dtype=np.float32)
+
+        # Fill the base rectangle (offset by tab_extension)
+        mask[tab_extension:tab_extension+height, tab_extension:tab_extension+width] = 1.0
+
+        # Add tabs and blanks
+        # Top edge
+        if edges.get('top') == 'tab':
+            # Add protruding tab at top
+            tab_start = tab_extension + int(width * 0.3)
+            tab_end = tab_extension + int(width * 0.7)
+            tab_height = int(height * tab_depth)
+
+            # Create rounded tab shape
+            for y in range(tab_extension - tab_height, tab_extension):
+                for x in range(tab_start, tab_end):
+                    # Simple rounded shape
+                    center_x = (tab_start + tab_end) // 2
+                    distance_from_center = abs(x - center_x) / ((tab_end - tab_start) / 2)
+                    if distance_from_center <= 1.0:
+                        mask[y, x] = 1.0
+
+        elif edges.get('top') == 'blank':
+            # Create indentation at top
+            tab_start = tab_extension + int(width * 0.3)
+            tab_end = tab_extension + int(width * 0.7)
+            tab_height = int(height * tab_depth)
+
+            # Create rounded blank shape
+            for y in range(tab_extension, tab_extension + tab_height):
+                for x in range(tab_start, tab_end):
+                    center_x = (tab_start + tab_end) // 2
+                    distance_from_center = abs(x - center_x) / ((tab_end - tab_start) / 2)
+                    if distance_from_center <= 1.0:
+                        mask[y, x] = 0.0
+
+        # Right edge
+        if edges.get('right') == 'tab':
+            tab_start = tab_extension + int(height * 0.3)
+            tab_end = tab_extension + int(height * 0.7)
+            tab_width = int(width * tab_depth)
+
+            for x in range(tab_extension + width, tab_extension + width + tab_width):
+                for y in range(tab_start, tab_end):
+                    center_y = (tab_start + tab_end) // 2
+                    distance_from_center = abs(y - center_y) / ((tab_end - tab_start) / 2)
+                    if distance_from_center <= 1.0:
+                        mask[y, x] = 1.0
+
+        elif edges.get('right') == 'blank':
+            tab_start = tab_extension + int(height * 0.3)
+            tab_end = tab_extension + int(height * 0.7)
+            tab_width = int(width * tab_depth)
+
+            for x in range(tab_extension + width - tab_width, tab_extension + width):
+                for y in range(tab_start, tab_end):
+                    center_y = (tab_start + tab_end) // 2
+                    distance_from_center = abs(y - center_y) / ((tab_end - tab_start) / 2)
+                    if distance_from_center <= 1.0:
+                        mask[y, x] = 0.0
+
+        # Bottom edge
+        if edges.get('bottom') == 'tab':
+            tab_start = tab_extension + int(width * 0.3)
+            tab_end = tab_extension + int(width * 0.7)
+            tab_height = int(height * tab_depth)
+
+            for y in range(tab_extension + height, tab_extension + height + tab_height):
+                for x in range(tab_start, tab_end):
+                    center_x = (tab_start + tab_end) // 2
+                    distance_from_center = abs(x - center_x) / ((tab_end - tab_start) / 2)
+                    if distance_from_center <= 1.0:
+                        mask[y, x] = 1.0
+
+        elif edges.get('bottom') == 'blank':
+            tab_start = tab_extension + int(width * 0.3)
+            tab_end = tab_extension + int(width * 0.7)
+            tab_height = int(height * tab_depth)
+
+            for y in range(tab_extension + height - tab_height, tab_extension + height):
+                for x in range(tab_start, tab_end):
+                    center_x = (tab_start + tab_end) // 2
+                    distance_from_center = abs(x - center_x) / ((tab_end - tab_start) / 2)
+                    if distance_from_center <= 1.0:
+                        mask[y, x] = 0.0
+
+        # Left edge
+        if edges.get('left') == 'tab':
+            tab_start = tab_extension + int(height * 0.3)
+            tab_end = tab_extension + int(height * 0.7)
+            tab_width = int(width * tab_depth)
+
+            for x in range(tab_extension - tab_width, tab_extension):
+                for y in range(tab_start, tab_end):
+                    center_y = (tab_start + tab_end) // 2
+                    distance_from_center = abs(y - center_y) / ((tab_end - tab_start) / 2)
+                    if distance_from_center <= 1.0:
+                        mask[y, x] = 1.0
+
+        elif edges.get('left') == 'blank':
+            tab_start = tab_extension + int(height * 0.3)
+            tab_end = tab_extension + int(height * 0.7)
+            tab_width = int(width * tab_depth)
+
+            for x in range(tab_extension, tab_extension + tab_width):
+                for y in range(tab_start, tab_end):
+                    center_y = (tab_start + tab_end) // 2
+                    distance_from_center = abs(y - center_y) / ((tab_end - tab_start) / 2)
+                    if distance_from_center <= 1.0:
+                        mask[y, x] = 0.0
+
+        return mask
 
     def _calculate_piece_difficulty(self, mask: np.ndarray, width: int, height: int) -> str:
         """Calculate difficulty level for a puzzle piece"""
