@@ -516,123 +516,82 @@ class ImageSegmentation:
     def _create_puzzle_shape_mask(self, width: int, height: int, edges: Dict[str, str]) -> np.ndarray:
         """Create a mask for puzzle piece shape based on edges information"""
         tab_depth = 0.15  # Tab depth as fraction of piece size
+        tab_size = int(min(width, height) * tab_depth)
 
         # Calculate extended dimensions to accommodate tabs
-        tab_extension = max(int(width * tab_depth), int(height * tab_depth))
-        extended_width = width + (2 * tab_extension)
-        extended_height = height + (2 * tab_extension)
+        has_top_tab = edges.get('top') == 'tab'
+        has_right_tab = edges.get('right') == 'tab'
+        has_bottom_tab = edges.get('bottom') == 'tab'
+        has_left_tab = edges.get('left') == 'tab'
 
-        # Create extended mask (all transparent initially)
+        # Calculate extensions needed
+        top_ext = tab_size if has_top_tab else 0
+        right_ext = tab_size if has_right_tab else 0
+        bottom_ext = tab_size if has_bottom_tab else 0
+        left_ext = tab_size if has_left_tab else 0
+
+        # Create extended mask
+        extended_width = width + left_ext + right_ext
+        extended_height = height + top_ext + bottom_ext
         mask = np.zeros((extended_height, extended_width), dtype=np.float32)
 
-        # Fill the base rectangle (offset by tab_extension)
-        mask[tab_extension:tab_extension+height, tab_extension:tab_extension+width] = 1.0
+        # Fill the base rectangle in the extended mask
+        mask[top_ext:top_ext + height, left_ext:left_ext + width] = 1.0
 
-        # Add tabs and blanks
+        # Calculate centers relative to the extended mask
+        base_center_x = left_ext + width // 2
+        base_center_y = top_ext + height // 2
+
+        # Add tabs and blanks using circular shapes
+        import cv2
+
         # Top edge
         if edges.get('top') == 'tab':
             # Add protruding tab at top
-            tab_start = tab_extension + int(width * 0.3)
-            tab_end = tab_extension + int(width * 0.7)
-            tab_height = int(height * tab_depth)
-
-            # Create rounded tab shape
-            for y in range(tab_extension - tab_height, tab_extension):
-                for x in range(tab_start, tab_end):
-                    # Simple rounded shape
-                    center_x = (tab_start + tab_end) // 2
-                    distance_from_center = abs(x - center_x) / ((tab_end - tab_start) / 2)
-                    if distance_from_center <= 1.0:
-                        mask[y, x] = 1.0
-
+            tab_center_x = base_center_x
+            tab_center_y = top_ext  # At the top edge of the base rectangle
+            cv2.circle(mask, (tab_center_x, tab_center_y), tab_size, 1.0, -1)
         elif edges.get('top') == 'blank':
             # Create indentation at top
-            tab_start = tab_extension + int(width * 0.3)
-            tab_end = tab_extension + int(width * 0.7)
-            tab_height = int(height * tab_depth)
-
-            # Create rounded blank shape
-            for y in range(tab_extension, tab_extension + tab_height):
-                for x in range(tab_start, tab_end):
-                    center_x = (tab_start + tab_end) // 2
-                    distance_from_center = abs(x - center_x) / ((tab_end - tab_start) / 2)
-                    if distance_from_center <= 1.0:
-                        mask[y, x] = 0.0
+            blank_center_x = base_center_x
+            blank_center_y = top_ext + tab_size  # Inside the base rectangle
+            cv2.circle(mask, (blank_center_x, blank_center_y), tab_size, 0.0, -1)
 
         # Right edge
         if edges.get('right') == 'tab':
-            tab_start = tab_extension + int(height * 0.3)
-            tab_end = tab_extension + int(height * 0.7)
-            tab_width = int(width * tab_depth)
-
-            for x in range(tab_extension + width, tab_extension + width + tab_width):
-                for y in range(tab_start, tab_end):
-                    center_y = (tab_start + tab_end) // 2
-                    distance_from_center = abs(y - center_y) / ((tab_end - tab_start) / 2)
-                    if distance_from_center <= 1.0:
-                        mask[y, x] = 1.0
-
+            # Add protruding tab at right
+            tab_center_x = left_ext + width  # At the right edge of the base rectangle
+            tab_center_y = base_center_y
+            cv2.circle(mask, (tab_center_x, tab_center_y), tab_size, 1.0, -1)
         elif edges.get('right') == 'blank':
-            tab_start = tab_extension + int(height * 0.3)
-            tab_end = tab_extension + int(height * 0.7)
-            tab_width = int(width * tab_depth)
-
-            for x in range(tab_extension + width - tab_width, tab_extension + width):
-                for y in range(tab_start, tab_end):
-                    center_y = (tab_start + tab_end) // 2
-                    distance_from_center = abs(y - center_y) / ((tab_end - tab_start) / 2)
-                    if distance_from_center <= 1.0:
-                        mask[y, x] = 0.0
+            # Create indentation at right
+            blank_center_x = left_ext + width - tab_size  # Inside the base rectangle
+            blank_center_y = base_center_y
+            cv2.circle(mask, (blank_center_x, blank_center_y), tab_size, 0.0, -1)
 
         # Bottom edge
         if edges.get('bottom') == 'tab':
-            tab_start = tab_extension + int(width * 0.3)
-            tab_end = tab_extension + int(width * 0.7)
-            tab_height = int(height * tab_depth)
-
-            for y in range(tab_extension + height, tab_extension + height + tab_height):
-                for x in range(tab_start, tab_end):
-                    center_x = (tab_start + tab_end) // 2
-                    distance_from_center = abs(x - center_x) / ((tab_end - tab_start) / 2)
-                    if distance_from_center <= 1.0:
-                        mask[y, x] = 1.0
-
+            # Add protruding tab at bottom
+            tab_center_x = base_center_x
+            tab_center_y = top_ext + height  # At the bottom edge of the base rectangle
+            cv2.circle(mask, (tab_center_x, tab_center_y), tab_size, 1.0, -1)
         elif edges.get('bottom') == 'blank':
-            tab_start = tab_extension + int(width * 0.3)
-            tab_end = tab_extension + int(width * 0.7)
-            tab_height = int(height * tab_depth)
-
-            for y in range(tab_extension + height - tab_height, tab_extension + height):
-                for x in range(tab_start, tab_end):
-                    center_x = (tab_start + tab_end) // 2
-                    distance_from_center = abs(x - center_x) / ((tab_end - tab_start) / 2)
-                    if distance_from_center <= 1.0:
-                        mask[y, x] = 0.0
+            # Create indentation at bottom
+            blank_center_x = base_center_x
+            blank_center_y = top_ext + height - tab_size  # Inside the base rectangle
+            cv2.circle(mask, (blank_center_x, blank_center_y), tab_size, 0.0, -1)
 
         # Left edge
         if edges.get('left') == 'tab':
-            tab_start = tab_extension + int(height * 0.3)
-            tab_end = tab_extension + int(height * 0.7)
-            tab_width = int(width * tab_depth)
-
-            for x in range(tab_extension - tab_width, tab_extension):
-                for y in range(tab_start, tab_end):
-                    center_y = (tab_start + tab_end) // 2
-                    distance_from_center = abs(y - center_y) / ((tab_end - tab_start) / 2)
-                    if distance_from_center <= 1.0:
-                        mask[y, x] = 1.0
-
+            # Add protruding tab at left
+            tab_center_x = left_ext  # At the left edge of the base rectangle
+            tab_center_y = base_center_y
+            cv2.circle(mask, (tab_center_x, tab_center_y), tab_size, 1.0, -1)
         elif edges.get('left') == 'blank':
-            tab_start = tab_extension + int(height * 0.3)
-            tab_end = tab_extension + int(height * 0.7)
-            tab_width = int(width * tab_depth)
-
-            for x in range(tab_extension, tab_extension + tab_width):
-                for y in range(tab_start, tab_end):
-                    center_y = (tab_start + tab_end) // 2
-                    distance_from_center = abs(y - center_y) / ((tab_end - tab_start) / 2)
-                    if distance_from_center <= 1.0:
-                        mask[y, x] = 0.0
+            # Create indentation at left
+            blank_center_x = left_ext + tab_size  # Inside the base rectangle
+            blank_center_y = base_center_y
+            cv2.circle(mask, (blank_center_x, blank_center_y), tab_size, 0.0, -1)
 
         return mask
 

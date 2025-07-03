@@ -452,49 +452,156 @@ class IntelligentPuzzleEngine:
             # Simple rectangular pieces
             return None
 
-        # Create base mask
-        mask = np.ones((height, width), dtype=np.uint8) * 255
-
-        # Add tabs and blanks based on edge info
+        # Calculate tab size
         tab_size = min(width, height) // 6
 
+        # Calculate extended dimensions to accommodate tabs
+        has_top_tab = edge_info.get('top') == 'tab'
+        has_right_tab = edge_info.get('right') == 'tab'
+        has_bottom_tab = edge_info.get('bottom') == 'tab'
+        has_left_tab = edge_info.get('left') == 'tab'
+
+        # Calculate extensions needed
+        top_ext = tab_size if has_top_tab else 0
+        right_ext = tab_size if has_right_tab else 0
+        bottom_ext = tab_size if has_bottom_tab else 0
+        left_ext = tab_size if has_left_tab else 0
+
+        # Create extended mask
+        extended_width = width + left_ext + right_ext
+        extended_height = height + top_ext + bottom_ext
+        mask = np.zeros((extended_height, extended_width), dtype=np.uint8)
+
+        # Fill the base rectangle in the extended mask
+        mask[top_ext:top_ext + height, left_ext:left_ext + width] = 255
+
+        # Calculate centers relative to the extended mask
+        base_center_x = left_ext + width // 2
+        base_center_y = top_ext + height // 2
+
+        # Add tabs and blanks based on edge info
         for edge, edge_type in edge_info.items():
             if edge_type == 'tab':
-                mask = self._add_tab_to_mask(mask, edge, tab_size)
+                mask = self._add_tab_to_extended_mask(mask, edge, tab_size, 
+                                                    base_center_x, base_center_y, 
+                                                    width, height, top_ext, left_ext)
             elif edge_type == 'blank':
-                mask = self._add_blank_to_mask(mask, edge, tab_size)
+                mask = self._add_blank_to_extended_mask(mask, edge, tab_size, 
+                                                      base_center_x, base_center_y, 
+                                                      width, height, top_ext, left_ext)
+
+        return mask
+
+    def _add_tab_to_extended_mask(self, mask: np.ndarray, edge: str, tab_size: int,
+                                base_center_x: int, base_center_y: int, 
+                                width: int, height: int, top_ext: int, left_ext: int) -> np.ndarray:
+        """Add tab to extended mask"""
+        if edge == 'top':
+            # Add tab extending upward from top edge
+            tab_center_x = base_center_x
+            tab_center_y = top_ext  # At the top edge of the base rectangle
+            cv2.circle(mask, (tab_center_x, tab_center_y), tab_size, 255, -1)
+        elif edge == 'right':
+            # Add tab extending rightward from right edge
+            tab_center_x = left_ext + width  # At the right edge of the base rectangle
+            tab_center_y = base_center_y
+            cv2.circle(mask, (tab_center_x, tab_center_y), tab_size, 255, -1)
+        elif edge == 'bottom':
+            # Add tab extending downward from bottom edge
+            tab_center_x = base_center_x
+            tab_center_y = top_ext + height  # At the bottom edge of the base rectangle
+            cv2.circle(mask, (tab_center_x, tab_center_y), tab_size, 255, -1)
+        elif edge == 'left':
+            # Add tab extending leftward from left edge
+            tab_center_x = left_ext  # At the left edge of the base rectangle
+            tab_center_y = base_center_y
+            cv2.circle(mask, (tab_center_x, tab_center_y), tab_size, 255, -1)
+
+        return mask
+
+    def _add_blank_to_extended_mask(self, mask: np.ndarray, edge: str, tab_size: int,
+                                  base_center_x: int, base_center_y: int, 
+                                  width: int, height: int, top_ext: int, left_ext: int) -> np.ndarray:
+        """Add blank (indentation) to extended mask"""
+        if edge == 'top':
+            # Cut indentation into the top edge
+            blank_center_x = base_center_x
+            blank_center_y = top_ext + tab_size  # Inside the base rectangle
+            cv2.circle(mask, (blank_center_x, blank_center_y), tab_size, 0, -1)
+        elif edge == 'right':
+            # Cut indentation into the right edge
+            blank_center_x = left_ext + width - tab_size  # Inside the base rectangle
+            blank_center_y = base_center_y
+            cv2.circle(mask, (blank_center_x, blank_center_y), tab_size, 0, -1)
+        elif edge == 'bottom':
+            # Cut indentation into the bottom edge
+            blank_center_x = base_center_x
+            blank_center_y = top_ext + height - tab_size  # Inside the base rectangle
+            cv2.circle(mask, (blank_center_x, blank_center_y), tab_size, 0, -1)
+        elif edge == 'left':
+            # Cut indentation into the left edge
+            blank_center_x = left_ext + tab_size  # Inside the base rectangle
+            blank_center_y = base_center_y
+            cv2.circle(mask, (blank_center_x, blank_center_y), tab_size, 0, -1)
 
         return mask
 
     def _add_tab_to_mask(self, mask: np.ndarray, edge: str, tab_size: int) -> np.ndarray:
-        """Add tab to piece mask"""
+        """Add tab (outward protrusion) to piece mask"""
         h, w = mask.shape
         center_x, center_y = w // 2, h // 2
 
+        # Create extended mask to accommodate tabs
+        extended_size = tab_size
         if edge == 'top':
-            cv2.circle(mask, (center_x, 0), tab_size, 255, -1)
+            # Extend mask upward and add tab
+            extended_mask = np.zeros((h + extended_size, w), dtype=np.uint8)
+            extended_mask[extended_size:, :] = mask
+            # Draw tab circle extending upward from the top edge
+            cv2.circle(extended_mask, (center_x, extended_size), tab_size, 255, -1)
+            return extended_mask
         elif edge == 'right':
-            cv2.circle(mask, (w - 1, center_y), tab_size, 255, -1)
+            # Extend mask rightward and add tab
+            extended_mask = np.zeros((h, w + extended_size), dtype=np.uint8)
+            extended_mask[:, :w] = mask
+            # Draw tab circle extending rightward from the right edge
+            cv2.circle(extended_mask, (w, center_y), tab_size, 255, -1)
+            return extended_mask
         elif edge == 'bottom':
-            cv2.circle(mask, (center_x, h - 1), tab_size, 255, -1)
+            # Extend mask downward and add tab
+            extended_mask = np.zeros((h + extended_size, w), dtype=np.uint8)
+            extended_mask[:h, :] = mask
+            # Draw tab circle extending downward from the bottom edge
+            cv2.circle(extended_mask, (center_x, h), tab_size, 255, -1)
+            return extended_mask
         elif edge == 'left':
-            cv2.circle(mask, (0, center_y), tab_size, 255, -1)
+            # Extend mask leftward and add tab
+            extended_mask = np.zeros((h, w + extended_size), dtype=np.uint8)
+            extended_mask[:, extended_size:] = mask
+            # Draw tab circle extending leftward from the left edge
+            cv2.circle(extended_mask, (extended_size, center_y), tab_size, 255, -1)
+            return extended_mask
 
         return mask
 
     def _add_blank_to_mask(self, mask: np.ndarray, edge: str, tab_size: int) -> np.ndarray:
-        """Add blank (indentation) to piece mask"""
+        """Add blank (inward indentation) to piece mask"""
         h, w = mask.shape
         center_x, center_y = w // 2, h // 2
 
+        # Create indentations by cutting into the piece
         if edge == 'top':
-            cv2.circle(mask, (center_x, 0), tab_size, 0, -1)
+            # Cut semicircle into the top edge
+            cv2.circle(mask, (center_x, tab_size), tab_size, 0, -1)
         elif edge == 'right':
-            cv2.circle(mask, (w - 1, center_y), tab_size, 0, -1)
+            # Cut semicircle into the right edge
+            cv2.circle(mask, (w - tab_size, center_y), tab_size, 0, -1)
         elif edge == 'bottom':
-            cv2.circle(mask, (center_x, h - 1), tab_size, 0, -1)
+            # Cut semicircle into the bottom edge
+            cv2.circle(mask, (center_x, h - tab_size), tab_size, 0, -1)
         elif edge == 'left':
-            cv2.circle(mask, (0, center_y), tab_size, 0, -1)
+            # Cut semicircle into the left edge
+            cv2.circle(mask, (tab_size, center_y), tab_size, 0, -1)
 
         return mask
 
