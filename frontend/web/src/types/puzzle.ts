@@ -15,13 +15,16 @@ export interface PuzzlePiece {
   zIndex: number
   connectedPieces: string[]
   edges: {
-    top: 'flat' | 'knob' | 'hole'
-    right: 'flat' | 'knob' | 'hole'
-    bottom: 'flat' | 'knob' | 'hole'
-    left: 'flat' | 'knob' | 'hole'
+    top: 'flat' | 'tab' | 'blank'
+    right: 'flat' | 'tab' | 'blank'
+    bottom: 'flat' | 'tab' | 'blank'
+    left: 'flat' | 'tab' | 'blank'
   }
   difficulty: 'easy' | 'medium' | 'hard'
   region: 'subject' | 'background'
+  // Optional properties for enhanced rendering
+  edgeOffsets?: { left: number, top: number, right: number, bottom: number }
+  shapePath?: string
 }
 
 export interface PuzzleData {
@@ -69,10 +72,10 @@ export interface BasePuzzlePiece {
   isPlaced: boolean
   isSelected: boolean
   edges: {
-    top: 'flat' | 'knob' | 'hole'
-    right: 'flat' | 'knob' | 'hole'
-    bottom: 'flat' | 'knob' | 'hole'
-    left: 'flat' | 'knob' | 'hole'
+    top: 'flat' | 'tab' | 'blank'
+    right: 'flat' | 'tab' | 'blank'
+    bottom: 'flat' | 'tab' | 'blank'
+    left: 'flat' | 'tab' | 'blank'
   }
   difficulty: 'easy' | 'medium' | 'hard'
   region: 'subject' | 'background'
